@@ -1,0 +1,24 @@
+{
+  "name": "pro-gyakuten-uno",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run --workspaces build",
+    "test": "npm run --workspaces test",
+    "test:core": "npm run -w @pro-gyakuten/core test",
+    "test:server": "npm run -w @pro-gyakuten/server test",
+    "test:integration": "vitest run tests/integration",
+    "dev:server": "npm run -w @pro-gyakuten/server dev",
+    "dev:client": "npm run -w @pro-gyakuten/client dev"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6"
+  }
+}

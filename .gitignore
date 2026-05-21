@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vite cache
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Temp files
+*.tmp
+*.tmp.*
+
+# Claude Code
+.claude/
