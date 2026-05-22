@@ -150,8 +150,8 @@ function handleSnatchAutoSkip(roomId: string, phaseToken: number): void {
 
   if (!changed) return;
   room.phase.skippedSnatchPlayerIds = Array.from(skipped);
-  if (!maybeFinishSnatchWindowEarly(room, "Players without valid snatch options were auto-skipped.")) {
-    broadcastGameState(room, "Players without valid snatch options were auto-skipped.");
+  if (!maybeFinishSnatchWindowEarly(room)) {
+    broadcastGameState(room);
   }
 }
 

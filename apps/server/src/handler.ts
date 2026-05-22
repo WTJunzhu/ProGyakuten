@@ -48,10 +48,6 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith("当前不是抢牌判定阶段");
       return;
     }
-    if (event.playerId === room.phase.sourcePlayerId) {
-      rejectWith("出牌玩家不能在自己的抢牌阶段点击跳过");
-      return;
-    }
 
     const skipped = new Set(room.phase.skippedSnatchPlayerIds ?? []);
     skipped.add(event.playerId);
