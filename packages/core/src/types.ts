@@ -23,6 +23,7 @@ export interface GameStateInternal {
   teams: { teamA: string[]; teamB: string[] };
   winnerTeam?: "teamA" | "teamB";
   drawCardStack: number;
+  penaltySource: CardKind | null;
   skipConstraint?: {
     targetPlayerId: string;
     requiredKind: CardKind;

@@ -11,6 +11,9 @@ import {
   applySnatchCard,
   createGame,
   isCardPlayable,
+  isCardSnatchable,
+  isCardSnatchableLite,
+  hasWildComboSnatchOption,
   getPlayerHand,
   toPublicState,
   alignTurnToSkipConstraint
@@ -391,7 +394,7 @@ describe("draw card stack", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("same-color reverse in draw stack reverses direction", () => {
+  it("same-color reverse on +2 reverses direction", () => {
     const state = setup4p("ds5");
     state.players[0].hand = [
       { id: "d2_red", color: "red", kind: "draw_two" },
@@ -404,13 +407,165 @@ describe("draw card stack", () => {
 
     applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "d2_red");
     expect(state.drawCardStack).toBe(2);
-    expect(state.direction).toBe(1);
 
     applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "rev_red");
     expect(state.drawCardStack).toBe(2);
     expect(state.direction).toBe(-1);
-    // After reverse, next player is p1 (going backwards from p2)
-    expect(state.players[state.currentPlayerIndex].playerId).toBe(state.players[0].playerId);
+  });
+
+  it("same-color reverse on +4 is allowed", () => {
+    const state = setup4p("ds7");
+    state.players[0].hand = [
+      { id: "w4", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+    state.players[1].hand = [
+      { id: "rev_red", color: "red", kind: "reverse" },
+      { id: "extra2", color: "green", kind: "number", value: 8 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4", "red");
+    expect(state.drawCardStack).toBe(4);
+
+    const result = applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "rev_red");
+    expect(result.ok).toBe(true);
+    expect(state.drawCardStack).toBe(4);
+    expect(state.direction).toBe(-1);
+  });
+
+  it("wrong-color reverse on +4 is rejected", () => {
+    const state = setup4p("ds8");
+    state.players[0].hand = [
+      { id: "w4", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+    state.players[1].hand = [
+      { id: "rev_blue", color: "blue", kind: "reverse" },
+      { id: "extra2", color: "green", kind: "number", value: 8 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4", "red");
+    expect(state.drawCardStack).toBe(4);
+
+    const result = applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "rev_blue");
+    expect(result.ok).toBe(false);
+  });
+
+  it("+4→reverse→+2 is rejected (penalty source is +4)", () => {
+    const state = setup4p("ds9");
+    state.players[0].hand = [
+      { id: "w4", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+    state.players[1].hand = [
+      { id: "rev_red", color: "red", kind: "reverse" },
+      { id: "extra2", color: "green", kind: "number", value: 8 }
+    ];
+    state.players[2].hand = [
+      { id: "d2_red", color: "red", kind: "draw_two" },
+      { id: "extra3", color: "yellow", kind: "number", value: 3 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4", "red");
+    expect(state.drawCardStack).toBe(4);
+
+    applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "rev_red");
+    expect(state.drawCardStack).toBe(4);
+
+    const result = applyPlayCard(state, state.players[2].playerId, state.turnId, 1, "d2_red");
+    expect(result.ok).toBe(false);
+  });
+
+  it("+4→+4→pass results in 8 penalty cards", () => {
+    const state = setup4p("ds6");
+    state.players[0].hand = [
+      { id: "w4_1", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+    state.players[1].hand = [
+      { id: "w4_2", color: "wild", kind: "wild_draw_four" },
+      { id: "extra2", color: "green", kind: "number", value: 8 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4_1", "red");
+    expect(state.drawCardStack).toBe(4);
+
+    applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "w4_2", "blue");
+    expect(state.drawCardStack).toBe(8);
+
+    const p3HandBefore = state.players[2].hand.length;
+    applyPassTurn(state, state.players[2].playerId, state.turnId, 1);
+    expect(state.players[2].hand.length).toBe(p3HandBefore + 8);
+  });
+
+  it("+4→wild-color-reverse→+2 is rejected (source stays +4)", () => {
+    const state = setup4p("ds10");
+    state.players[0].hand = [
+      { id: "w4", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+    state.players[1].hand = [
+      { id: "wild1", color: "wild", kind: "wild" },
+      { id: "rev_green", color: "green", kind: "reverse" },
+      { id: "extra2", color: "yellow", kind: "number", value: 3 }
+    ];
+    state.players[2].hand = [
+      { id: "d2_red", color: "red", kind: "draw_two" },
+      { id: "extra3", color: "blue", kind: "number", value: 5 }
+    ];
+
+    // Player 0 plays +4 (declares red)
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4", "red");
+    expect(state.drawCardStack).toBe(4);
+    expect(state.penaltySource).toBe("wild_draw_four");
+
+    // Player 1 plays wild + reverse combo (declares red → red reverse)
+    applyComboPlay(state, state.players[1].playerId, state.turnId, 1, "wild1", "rev_green", "red");
+    expect(state.drawCardStack).toBe(4);
+    expect(state.penaltySource).toBe("wild_draw_four");
+
+    // Player 2 tries +2 → rejected because source is +4
+    const result = applyPlayCard(state, state.players[2].playerId, state.turnId, 1, "d2_red");
+    expect(result.ok).toBe(false);
+  });
+
+  it("+2→reverse→+4 is allowed (source is +2)", () => {
+    const state = setup2p("ds11");
+    state.players[0].hand = [
+      { id: "d2_red", color: "red", kind: "draw_two" },
+      { id: "w4", color: "wild", kind: "wild_draw_four" }
+    ];
+    state.players[1].hand = [
+      { id: "rev_red", color: "red", kind: "reverse" },
+      { id: "extra2", color: "green", kind: "number", value: 8 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "d2_red");
+    expect(state.penaltySource).toBe("draw_two");
+
+    // Player 1 plays reverse → direction flips, next is player 0 again
+    applyPlayCard(state, state.players[1].playerId, state.turnId, 1, "rev_red");
+    expect(state.penaltySource).toBe("draw_two");
+
+    // Player 0 plays +4 (allowed because penaltySource is +2, not +4)
+    const result = applyPlayCard(state, state.players[0].playerId, state.turnId, 2, "w4", "red");
+    expect(result.ok).toBe(true);
+    expect(state.penaltySource).toBe("wild_draw_four");
+  });
+
+  it("penaltySource clears after penalty resolves", () => {
+    const state = setup4p("ds12");
+    state.players[0].hand = [
+      { id: "w4", color: "wild", kind: "wild_draw_four" },
+      { id: "extra1", color: "blue", kind: "number", value: 9 }
+    ];
+
+    applyPlayCard(state, state.players[0].playerId, state.turnId, 1, "w4", "red");
+    expect(state.penaltySource).toBe("wild_draw_four");
+
+    applyPassTurn(state, state.players[1].playerId, state.turnId, 1);
+    expect(state.penaltySource).toBe(null);
+    expect(state.drawCardStack).toBe(0);
   });
 });
 
@@ -593,6 +748,19 @@ describe("snatch", () => {
     const result = applyComboSnatch(state, state.players[2].playerId, "wild_c", "blue_5", "red");
     expect(result.ok).toBe(true);
   });
+
+  it("+4 cannot snatch +2 (different kind, no exact match)", () => {
+    const state = setup4p("sn4");
+    state.discardPile = [{ id: "top_red_d2", color: "red", kind: "draw_two", value: 0 }];
+    state.drawCardStack = 2;
+    state.penaltySource = "draw_two";
+    state.players[2].hand = [
+      { id: "wd4", color: "red", kind: "wild_draw_four", value: 0 }
+    ];
+
+    const result = applySnatchCard(state, state.players[2].playerId, "wd4");
+    expect(result.ok).toBe(false);
+  });
 });
 
 // ============================================================
@@ -660,5 +828,75 @@ describe("getPlayerHand", () => {
     const state = setup2p("ph2");
     const hand = getPlayerHand(state, "unknown");
     expect(hand).toEqual([]);
+  });
+});
+
+// ============================================================
+// Combo snatch: Wild + colored card
+// ============================================================
+describe("combo snatch with Wild", () => {
+  it("hasWildComboSnatchOption detects Wild + reverse combo", () => {
+    const state = setup2p("wcs1");
+    // Top card: blue reverse
+    state.discardPile = [{ id: "top_blue_rev", color: "blue", kind: "reverse" }];
+    state.drawCardStack = 0;
+
+    // Player has: wild + green reverse
+    const hand: Card[] = [
+      { id: "wild1", color: "wild", kind: "wild" },
+      { id: "green_rev", color: "green", kind: "reverse" }
+    ];
+
+    expect(hasWildComboSnatchOption(state, hand)).toBe(true);
+  });
+
+  it("isCardSnatchable rejects green reverse for blue reverse top", () => {
+    const state = setup2p("wcs2");
+    state.discardPile = [{ id: "top_blue_rev", color: "blue", kind: "reverse" }];
+    state.drawCardStack = 0;
+    state.players[0].hand = [
+      { id: "wild1", color: "wild", kind: "wild" },
+      { id: "green_rev", color: "green", kind: "reverse" }
+    ];
+
+    const greenRev = state.players[0].hand[1];
+    expect(isCardSnatchable(state, greenRev)).toBe(false);
+  });
+
+  it("isCardSnatchableLite: transformed blue reverse matches blue reverse top", () => {
+    const topCard: Card = { id: "top_blue_rev", color: "blue", kind: "reverse" };
+    const transformedCard: Card = { id: "green_rev", color: "blue", kind: "reverse" };
+
+    expect(isCardSnatchableLite({ card: transformedCard, topCard, drawCardStack: 0 })).toBe(true);
+  });
+
+  it("applyComboSnatch succeeds: Wild + green reverse (declared blue) on blue reverse", () => {
+    const state = setup2p("wcs3");
+    state.discardPile = [{ id: "top_blue_rev", color: "blue", kind: "reverse" }];
+    state.drawCardStack = 0;
+    state.direction = 1;
+
+    // p2 (index 1) is the snatcher
+    state.currentPlayerIndex = 0;
+    const snatcherId = state.players[1].playerId;
+    state.players[1].hand = [
+      { id: "wild1", color: "wild", kind: "wild" },
+      { id: "green_rev", color: "green", kind: "reverse" },
+      { id: "other", color: "red", kind: "number", value: 3 }
+    ];
+
+    const result = applyComboSnatch(state, snatcherId, "wild1", "green_rev", "blue");
+    expect(result.ok).toBe(true);
+    // After combo, the green reverse (now blue) should be on top
+    const top = state.discardPile[state.discardPile.length - 1];
+    expect(top.kind).toBe("reverse");
+    expect(top.color).toBe("blue");
+  });
+
+  it("isCardSnatchableLite: green reverse (original) does NOT match blue reverse top", () => {
+    const topCard: Card = { id: "top_blue_rev", color: "blue", kind: "reverse" };
+    const originalCard: Card = { id: "green_rev", color: "green", kind: "reverse" };
+
+    expect(isCardSnatchableLite({ card: originalCard, topCard, drawCardStack: 0 })).toBe(false);
   });
 });

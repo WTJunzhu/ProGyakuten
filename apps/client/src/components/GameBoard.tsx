@@ -21,7 +21,7 @@ function isCardPlayable(card: Card, state: GameState, allowed: AllowedAction[], 
     return playableDrawnCardId === card.id && isActionAllowed(allowed, "play_drawn");
   }
   if (!isActionAllowed(allowed, "play")) return false;
-  return isCardPlayableLite({ card, topCard: state.topCard, drawCardStack: state.drawCardStack, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
+  return isCardPlayableLite({ card, topCard: state.topCard, drawCardStack: state.drawCardStack, penaltySourceKind: state.penaltySourceKind, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
 }
 
 function isCardSnatchable(card: Card, state: GameState, allowed: AllowedAction[], phase: string | undefined): boolean {
@@ -44,7 +44,7 @@ function isWildComboTarget(card: Card, pendingWildCard: Card | null, pendingWild
     return isCardSnatchable(transformed, state, allowed, phase);
   }
   if (!isActionAllowed(allowed, "play")) return false;
-  return isCardPlayableLite({ card: transformed, topCard: state.topCard, drawCardStack: state.drawCardStack, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
+  return isCardPlayableLite({ card: transformed, topCard: state.topCard, drawCardStack: state.drawCardStack, penaltySourceKind: state.penaltySourceKind, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
 }
 
 function getPassLabel(phase: string | undefined, drawCardStack: number): string {

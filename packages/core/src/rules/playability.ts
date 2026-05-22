@@ -1,4 +1,4 @@
-import type { Card, GamePublicState } from "@pro-gyakuten/protocol";
+import type { Card, CardKind, GamePublicState } from "@pro-gyakuten/protocol";
 import { applyRuleHooks, effectiveTopCard, matchesSkipConstraint } from "../engine/state";
 import { COLORS, type GameStateInternal } from "../types";
 
@@ -13,7 +13,7 @@ function getDefaultPlayableResult(state: GameStateInternal, card: Card, allowWil
 
   let defaultResult: boolean;
   if (state.drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") {
+    if (state.penaltySource === "wild_draw_four") {
       defaultResult = card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
     } else {
       defaultResult =
@@ -61,21 +61,10 @@ export function isCardSnatchable(state: GameStateInternal, card: Card): boolean 
   if (!state.rules.config.allowSnatch) return false;
   const top = state.discardPile[state.discardPile.length - 1];
 
-  let defaultResult: boolean;
-  if (state.drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") {
-      defaultResult = card.kind === "wild_draw_four";
-    } else {
-      const isPenaltyCard = card.kind === "draw_two" || card.kind === "wild_draw_four";
-      const isTopPenalty = top.kind === "draw_two";
-      defaultResult = isPenaltyCard && isTopPenalty && (card.kind === "wild_draw_four" || card.color === top.color);
-    }
-  } else {
-    const isColorMatch = card.color === top.color;
-    const isKindMatch = card.kind === top.kind;
-    const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
-    defaultResult = isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
-  }
+  const isColorMatch = card.color === top.color;
+  const isKindMatch = card.kind === top.kind;
+  const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
+  const defaultResult = isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
 
   const player = state.players.find((entry) => entry.hand.some((handCard) => handCard.id === card.id)) ?? state.players[state.currentPlayerIndex];
   return applyRuleHooks(state.rules.hooks, (hook) => hook.canSnatchCard?.({ state, player, card }, defaultResult)) ?? defaultResult;
@@ -115,11 +104,12 @@ export function isCardPlayableLite(params: {
   card: Card;
   topCard: Card;
   drawCardStack: number;
+  penaltySourceKind?: CardKind;
   skipConstraint?: GamePublicState["skipConstraint"];
   currentPlayerId: string;
   playerId: string;
 }): boolean {
-  const { card, topCard, drawCardStack, skipConstraint, currentPlayerId, playerId } = params;
+  const { card, topCard, drawCardStack, penaltySourceKind, skipConstraint, currentPlayerId, playerId } = params;
   if (currentPlayerId !== playerId) return false;
 
   if (skipConstraint?.targetPlayerId === playerId) {
@@ -128,7 +118,7 @@ export function isCardPlayableLite(params: {
 
   const top = topCard;
   if (drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") {
+    if (penaltySourceKind === "wild_draw_four") {
       return card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
     }
     return card.kind === "draw_two" || card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
@@ -146,15 +136,8 @@ export function isCardSnatchableLite(params: {
   topCard: Card;
   drawCardStack: number;
 }): boolean {
-  const { card, topCard, drawCardStack } = params;
+  const { card, topCard } = params;
   const top = topCard;
-
-  if (drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") return card.kind === "wild_draw_four";
-    const isPenaltyCard = card.kind === "draw_two" || card.kind === "wild_draw_four";
-    const isTopPenalty = top.kind === "draw_two";
-    return isPenaltyCard && isTopPenalty && (card.kind === "wild_draw_four" || card.color === top.color);
-  }
 
   const isColorMatch = card.color === top.color;
   const isKindMatch = card.kind === top.kind;

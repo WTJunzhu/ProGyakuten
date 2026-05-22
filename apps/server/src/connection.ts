@@ -22,12 +22,12 @@ export function markDisconnected(playerId: string): void {
     }
   }
 
-  setTimeout(() => {
+  setTimeout(async () => {
     const latest = playersById.get(playerId);
     if (!latest || !latest.disconnectedAt || Date.now() - latest.disconnectedAt < RECONNECT_GRACE_MS) return;
 
     playersById.delete(playerId);
-    persistence.deletePlayerSession(playerId);
+    await persistence.deletePlayerSession(playerId);
     if (!latest.roomId) return;
     const room = roomManager.get(latest.roomId);
     if (!room) return;
@@ -36,8 +36,8 @@ export function markDisconnected(playerId: string): void {
       removePlayerFromLobbyRoom(room, playerId);
       if (room.players.length === 0) {
         roomManager.delete(room.roomId);
-        persistence.deleteRoom(room.roomId);
-        persistence.deleteGameSnapshot(room.roomId);
+        await persistence.deleteRoom(room.roomId);
+        await persistence.deleteGameSnapshot(room.roomId);
       } else if (room.players.length === 1) {
         const lastPid = room.players[0];
         const lastConn = playersById.get(lastPid);
@@ -48,8 +48,8 @@ export function markDisconnected(playerId: string): void {
         }
         room.players = [];
         roomManager.delete(room.roomId);
-        persistence.deleteRoom(room.roomId);
-        persistence.deleteGameSnapshot(room.roomId);
+        await persistence.deleteRoom(room.roomId);
+        await persistence.deleteGameSnapshot(room.roomId);
       } else {
         if (room.status === "game_over") {
           room.status = "lobby";

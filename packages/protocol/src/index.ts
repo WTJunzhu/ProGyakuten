@@ -40,6 +40,7 @@ export interface GamePublicState {
   teams: { teamA: string[]; teamB: string[] };
   winnerTeam?: "teamA" | "teamB";
   drawCardStack: number;
+  penaltySourceKind?: CardKind;
   skipConstraint?: {
     targetPlayerId: string;
     requiredKind: CardKind;

@@ -11,7 +11,7 @@ export function LoginScreen({ onConnect, wsSend }: Props) {
   const savedServerUrl = useGameStore((s) => s.savedServerUrl);
   const savedPlayerId = useGameStore((s) => s.savedPlayerId);
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [localServerUrl, setLocalServerUrl] = useState(() => savedServerUrl ?? "ws://localhost:3001");
+  const [localServerUrl, setLocalServerUrl] = useState(() => savedServerUrl ?? import.meta.env.VITE_WS_URL ?? "ws://localhost:3001");
   const [username, setUsername] = useState(() => savedPlayerId ?? "");
   const [password, setPassword] = useState("");
   const setStoreServerUrl = useGameStore((s) => s.setServerUrl);

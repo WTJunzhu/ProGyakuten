@@ -23,13 +23,13 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 }
 
 export async function register(username: string, password: string): Promise<{ ok: boolean; token?: string; accountId?: string; error?: string }> {
-  const existing = persistence.getAccountByUsername(username);
+  const existing = await persistence.getAccountByUsername(username);
   if (existing) {
     return { ok: false, error: "用户名已存在" };
   }
   const accountId = randomUUID();
   const passwordHash = await hashPassword(password);
-  persistence.createAccount(accountId, username, passwordHash);
+  await persistence.createAccount(accountId, username, passwordHash);
 
   const token = randomUUID();
   tokens.set(token, { accountId });
@@ -38,7 +38,7 @@ export async function register(username: string, password: string): Promise<{ ok
 }
 
 export async function login(username: string, password: string): Promise<{ ok: boolean; token?: string; accountId?: string; error?: string }> {
-  const account = persistence.getAccountByUsername(username);
+  const account = await persistence.getAccountByUsername(username);
   if (!account) {
     return { ok: false, error: "用户名不存在" };
   }

@@ -18,7 +18,7 @@ export function removePlayerFromLobbyRoom(room: RoomState, playerId: string): vo
   }
 }
 
-function dissolveRoom(room: RoomState, reason: string): void {
+async function dissolveRoom(room: RoomState, reason: string): Promise<void> {
   for (const pid of room.players) {
     const conn = playersById.get(pid);
     if (conn) {
@@ -30,8 +30,8 @@ function dissolveRoom(room: RoomState, reason: string): void {
   }
   room.players = [];
   roomManager.delete(room.roomId);
-  persistence.deleteRoom(room.roomId);
-  persistence.deleteGameSnapshot(room.roomId);
+  await persistence.deleteRoom(room.roomId);
+  await persistence.deleteGameSnapshot(room.roomId);
   broadcastToLobby(getLobbyStateEvent());
 }
 
@@ -42,13 +42,13 @@ export function broadcastRoomSnapshot(room: RoomState): void {
   }
 }
 
-export function leaveRoom(conn: PlayerConn, playerId: string): void {
+export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<void> {
   const roomId = conn.roomId;
   conn.roomId = undefined;
   conn.isInLobby = true;
   conn.disconnectedAt = undefined;
   playersById.delete(playerId);
-  persistence.deletePlayerSession(playerId);
+  await persistence.deletePlayerSession(playerId);
 
   if (!roomId) return;
   const room = roomManager.get(roomId);
@@ -59,14 +59,14 @@ export function leaveRoom(conn: PlayerConn, playerId: string): void {
 
     if (room.players.length === 0) {
       roomManager.delete(room.roomId);
-      persistence.deleteRoom(room.roomId);
-      persistence.deleteGameSnapshot(room.roomId);
+      await persistence.deleteRoom(room.roomId);
+      await persistence.deleteGameSnapshot(room.roomId);
       broadcastToLobby(getLobbyStateEvent());
       return;
     }
 
     if (room.players.length === 1) {
-      dissolveRoom(room, "房间人数不足，已自动解散");
+      await dissolveRoom(room, "房间人数不足，已自动解散");
       return;
     }
 
@@ -74,7 +74,7 @@ export function leaveRoom(conn: PlayerConn, playerId: string): void {
       room.status = "lobby";
       room.game = undefined;
     }
-    persistence.saveRoom(room);
+    await persistence.saveRoom(room);
     broadcastRoomSnapshot(room);
     broadcastToLobby(getLobbyStateEvent());
     return;
@@ -89,7 +89,7 @@ export function leaveRoom(conn: PlayerConn, playerId: string): void {
       return c && !c.disconnectedAt;
     });
     if (connectedPlayers.length <= 1) {
-      dissolveRoom(room, "对局中玩家不足，房间已自动解散");
+      await dissolveRoom(room, "对局中玩家不足，房间已自动解散");
       return;
     }
     broadcastToLobby(getLobbyStateEvent());

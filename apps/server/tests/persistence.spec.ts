@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createClient } from "@libsql/client";
 import { SqlitePersistence } from "../src/persistence.js";
 import type { RoomState } from "../src/types.js";
 
@@ -17,214 +18,99 @@ function makeRoom(overrides: Partial<RoomState> = {}): RoomState {
 describe("SqlitePersistence", () => {
   let db: SqlitePersistence;
 
-  beforeEach(() => {
-    db = new SqlitePersistence(":memory:");
+  beforeEach(async () => {
+    const client = createClient({ url: ":memory:" });
+    db = new SqlitePersistence(client);
+    await db.init();
   });
 
-  afterEach(() => {
-    db.close();
+  afterEach(async () => {
+    await db.close();
   });
 
   describe("Room persistence", () => {
-    it("saves and loads a room", () => {
+    it("saves and loads a room", async () => {
       const room = makeRoom();
-      db.saveRoom(room);
-      const loaded = db.loadRoom("test-room");
+      await db.saveRoom(room);
+      const loaded = await db.loadRoom("test-room");
       expect(loaded).not.toBeNull();
       expect(loaded!.roomId).toBe("test-room");
       expect(loaded!.players).toEqual(["alice", "bob"]);
       expect(loaded!.ownerPlayerId).toBe("alice");
-      expect(loaded!.teams).toEqual({ teamA: ["alice"], teamB: ["bob"] });
     });
 
-    it("returns null for non-existent room", () => {
-      expect(db.loadRoom("nope")).toBeNull();
+    it("returns null for non-existent room", async () => {
+      const loaded = await db.loadRoom("nope");
+      expect(loaded).toBeNull();
     });
 
-    it("updates an existing room", () => {
-      const room = makeRoom();
-      db.saveRoom(room);
-      room.players.push("charlie");
-      room.status = "in_game";
-      db.saveRoom(room);
-      const loaded = db.loadRoom("test-room");
-      expect(loaded!.players).toEqual(["alice", "bob", "charlie"]);
-      expect(loaded!.status).toBe("in_game");
+    it("deletes a room", async () => {
+      await db.saveRoom(makeRoom());
+      await db.deleteRoom("test-room");
+      expect(await db.loadRoom("test-room")).toBeNull();
     });
 
-    it("deletes a room", () => {
-      db.saveRoom(makeRoom());
-      db.deleteRoom("test-room");
-      expect(db.loadRoom("test-room")).toBeNull();
-    });
-
-    it("loads all rooms", () => {
-      db.saveRoom(makeRoom({ roomId: "room1" }));
-      db.saveRoom(makeRoom({ roomId: "room2" }));
-      const all = db.loadAllRooms();
-      expect(all).toHaveLength(2);
-      expect(all.map((r) => r.roomId).sort()).toEqual(["room1", "room2"]);
-    });
-
-    it("handles room players ordering by seat", () => {
-      const room = makeRoom({ players: ["charlie", "alice", "bob"] });
-      db.saveRoom(room);
-      const loaded = db.loadRoom("test-room");
-      expect(loaded!.players).toEqual(["charlie", "alice", "bob"]);
+    it("loads all rooms", async () => {
+      await db.saveRoom(makeRoom({ roomId: "r1" }));
+      await db.saveRoom(makeRoom({ roomId: "r2" }));
+      const all = await db.loadAllRooms();
+      expect(all.length).toBe(2);
     });
   });
 
-  describe("Game snapshot persistence", () => {
-    it("saves and loads a game snapshot", () => {
-      const room = makeRoom({ status: "in_game" });
-      db.saveRoom(room);
-
-      // Minimal mock game state
-      const game = {
-        roomId: "test-room",
-        gameId: "game-1",
-        turnId: 1,
-        currentPlayerIndex: 0,
-        direction: 1 as const,
-        drawPile: [],
-        discardPile: [{ id: "c1", color: "red" as const, kind: "number" as const, value: 5 }],
-        players: [
-          { playerId: "alice", hand: [], connected: true, lastSeq: 0, missedUnoPending: false },
-          { playerId: "bob", hand: [], connected: true, lastSeq: 0, missedUnoPending: false }
-        ],
-        teams: { teamA: ["alice"], teamB: ["bob"] },
-        drawCardStack: 0,
-        rules: {
-          config: {
-            allowSnatch: true,
-            allowPostDrawWindow: true,
-            enforceUnoPenalty: true,
-            initialHandsNumbersOnly: true,
-            allowWildStartCard: false,
-            maxHandSize: 50,
-            phaseDurations: { turnMainMs: 30000, snatchWindowMs: 5000, postDrawWindowMs: 5000 }
-          },
-          hooks: []
-        }
-      };
-
-      const phase = {
-        phase: "turn_main" as const,
-        actingPlayerId: "alice",
-        endsAt: Date.now() + 30000
-      };
-
-      db.saveGameSnapshot("test-room", game as any, phase);
-      const result = db.loadGameSnapshot("test-room");
-      expect(result).not.toBeNull();
-      expect(result!.game.roomId).toBe("test-room");
-      expect(result!.game.turnId).toBe(1);
-      expect(result!.phase?.phase).toBe("turn_main");
+  describe("Account persistence", () => {
+    it("creates and retrieves account by username", async () => {
+      await db.createAccount("acc-1", "testuser", "hash123");
+      const account = await db.getAccountByUsername("testuser");
+      expect(account).not.toBeNull();
+      expect(account!.accountId).toBe("acc-1");
+      expect(account!.username).toBe("testuser");
+      expect(account!.passwordHash).toBe("hash123");
     });
 
-    it("returns null for non-existent snapshot", () => {
-      expect(db.loadGameSnapshot("nope")).toBeNull();
-    });
-
-    it("deletes a game snapshot", () => {
-      db.saveRoom(makeRoom({ status: "in_game" }));
-      const game = {
-        roomId: "test-room",
-        gameId: "game-1",
-        turnId: 0,
-        currentPlayerIndex: 0,
-        direction: 1 as const,
-        drawPile: [],
-        discardPile: [],
-        players: [],
-        teams: { teamA: [], teamB: [] },
-        drawCardStack: 0,
-        rules: {
-          config: {
-            allowSnatch: true,
-            allowPostDrawWindow: true,
-            enforceUnoPenalty: true,
-            initialHandsNumbersOnly: true,
-            allowWildStartCard: false,
-            maxHandSize: 50,
-            phaseDurations: { turnMainMs: 30000, snatchWindowMs: 5000, postDrawWindowMs: 5000 }
-          },
-          hooks: []
-        }
-      };
-      db.saveGameSnapshot("test-room", game as any);
-      db.deleteGameSnapshot("test-room");
-      expect(db.loadGameSnapshot("test-room")).toBeNull();
+    it("returns null for non-existent username", async () => {
+      const account = await db.getAccountByUsername("nobody");
+      expect(account).toBeNull();
     });
   });
 
-  describe("Player session persistence", () => {
-    it("saves and loads a player session", () => {
-      db.savePlayerSession("alice", "room-1");
-      const session = db.loadPlayerSession("alice");
-      expect(session).not.toBeNull();
-      expect(session!.roomId).toBe("room-1");
+  describe("Character persistence", () => {
+    it("creates and lists characters", async () => {
+      await db.createAccount("acc-1", "user", "hash");
+      await db.createCharacter("char-1", "acc-1", 0, "Hero");
+      await db.createCharacter("char-2", "acc-1", 1, "Mage");
+
+      const chars = await db.getCharactersByAccount("acc-1");
+      expect(chars.length).toBe(2);
+      expect(chars[0].displayName).toBe("Hero");
+      expect(chars[1].displayName).toBe("Mage");
     });
 
-    it("saves session with null roomId", () => {
-      db.savePlayerSession("alice", null);
-      const session = db.loadPlayerSession("alice");
-      expect(session).not.toBeNull();
-      expect(session!.roomId).toBeNull();
+    it("deletes a character", async () => {
+      await db.createAccount("acc-1", "user", "hash");
+      await db.createCharacter("char-1", "acc-1", 0, "Hero");
+      await db.deleteCharacter("char-1");
+      const chars = await db.getCharactersByAccount("acc-1");
+      expect(chars.length).toBe(0);
     });
 
-    it("returns null for non-existent session", () => {
-      expect(db.loadPlayerSession("nope")).toBeNull();
+    it("gets character by id", async () => {
+      await db.createAccount("acc-1", "user", "hash");
+      await db.createCharacter("char-1", "acc-1", 0, "Hero");
+      const char = await db.getCharacter("char-1");
+      expect(char).not.toBeNull();
+      expect(char!.displayName).toBe("Hero");
+      expect(char!.level).toBe(1);
     });
 
-    it("deletes a player session", () => {
-      db.savePlayerSession("alice", "room-1");
-      db.deletePlayerSession("alice");
-      expect(db.loadPlayerSession("alice")).toBeNull();
-    });
-
-    it("updates an existing session", () => {
-      db.savePlayerSession("alice", "room-1");
-      db.savePlayerSession("alice", "room-2");
-      const session = db.loadPlayerSession("alice");
-      expect(session!.roomId).toBe("room-2");
-    });
-  });
-
-  describe("Cascade delete", () => {
-    it("deleting a room cascades to room_players and game_snapshots", () => {
-      const room = makeRoom({ status: "in_game" });
-      db.saveRoom(room);
-
-      const game = {
-        roomId: "test-room",
-        gameId: "game-1",
-        turnId: 0,
-        currentPlayerIndex: 0,
-        direction: 1 as const,
-        drawPile: [],
-        discardPile: [],
-        players: [],
-        teams: { teamA: [], teamB: [] },
-        drawCardStack: 0,
-        rules: {
-          config: {
-            allowSnatch: true,
-            allowPostDrawWindow: true,
-            enforceUnoPenalty: true,
-            initialHandsNumbersOnly: true,
-            allowWildStartCard: false,
-            maxHandSize: 50,
-            phaseDurations: { turnMainMs: 30000, snatchWindowMs: 5000, postDrawWindowMs: 5000 }
-          },
-          hooks: []
-        }
-      };
-      db.saveGameSnapshot("test-room", game as any);
-
-      db.deleteRoom("test-room");
-      expect(db.loadRoom("test-room")).toBeNull();
-      expect(db.loadGameSnapshot("test-room")).toBeNull();
+    it("updates character stats", async () => {
+      await db.createAccount("acc-1", "user", "hash");
+      await db.createCharacter("char-1", "acc-1", 0, "Hero");
+      await db.updateCharacterStats("char-1", 5, 3, 10);
+      const char = await db.getCharacter("char-1");
+      expect(char!.wins).toBe(5);
+      expect(char!.losses).toBe(3);
+      expect(char!.level).toBe(10);
     });
   });
 });

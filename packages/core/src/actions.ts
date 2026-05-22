@@ -239,6 +239,7 @@ export function applyPassTurn(
     }
     announcements.push(`Player ${player.playerId} draws ${state.drawCardStack} penalty cards.`);
     state.drawCardStack = 0;
+    state.penaltySource = null;
   }
 
   clearSkipConstraintIfConsumed(state, playerId);

@@ -209,6 +209,7 @@ export function toPublicState(state: GameStateInternal): GamePublicState {
     teams: state.teams,
     winnerTeam: state.winnerTeam,
     drawCardStack: state.drawCardStack,
+    penaltySourceKind: state.penaltySource ?? undefined,
     skipConstraint: state.skipConstraint
   } as GamePublicState;
 }

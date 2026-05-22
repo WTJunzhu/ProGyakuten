@@ -8,15 +8,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@pro-gyakuten/core": "0.1.0",
     "@pro-gyakuten/protocol": "0.1.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.10.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/ws": "^8.5.13",
     "tsx": "^4.19.2",
     "vitest": "^2.1.8"

@@ -159,7 +159,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
       if (!session) return null;
 
-      const serverUrl = session.serverUrl || "ws://localhost:3001";
+      const serverUrl = session.serverUrl || import.meta.env.VITE_WS_URL || "ws://localhost:3001";
       set({
         savedPlayerId: session.playerId,
         savedServerUrl: serverUrl,

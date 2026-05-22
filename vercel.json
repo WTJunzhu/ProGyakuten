@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run build -w @pro-gyakuten/protocol && npm run build -w @pro-gyakuten/core && npm run build -w @pro-gyakuten/client",
+  "outputDirectory": "apps/client/dist",
+  "installCommand": "npm install"
+}

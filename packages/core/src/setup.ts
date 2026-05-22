@@ -102,6 +102,7 @@ export function createGame(roomId: string, playerIds: string[], rulesOrOptions?:
     players,
     teams,
     drawCardStack: 0,
+    penaltySource: null,
     rules
   };
 

@@ -1,3 +1,4 @@
+import http from "node:http";
 import { createGame, getPlayerHand, toPublicState } from "@pro-gyakuten/core";
 import type { ClientEvent } from "@pro-gyakuten/protocol";
 import { WebSocketServer } from "ws";
@@ -11,19 +12,21 @@ import { getAllowedActions } from "./actions.js";
 import { setPhase } from "./phase.js";
 import { handleAction } from "./handler.js";
 import { handleReconnect, handleDisconnect } from "./connection.js";
-import { persistence } from "./db.js";
+import { persistence, db } from "./db.js";
 import { register, login, verifyToken, setTokenCharacter } from "./auth.js";
 import { listCharacters, createCharacter } from "./character.js";
 
 const MAX_CHARACTERS = 3;
 
 // Restore rooms on startup
-function restoreRooms(): void {
-  const rooms = persistence.loadAllRooms();
+async function restoreRooms(): Promise<void> {
+  await persistence.init();
+
+  const rooms = await persistence.loadAllRooms();
   const restoredRoomIds: string[] = [];
   for (const room of rooms) {
     if (room.status === "in_game") {
-      const snapshot = persistence.loadGameSnapshot(room.roomId);
+      const snapshot = await persistence.loadGameSnapshot(room.roomId);
       if (snapshot) {
         room.game = snapshot.game;
         room.phase = snapshot.phase;
@@ -34,7 +37,6 @@ function restoreRooms(): void {
         console.log(`[restore] Room ${room.roomId}: status=${room.status}, players=${room.players}, game.turnId=${room.game.turnId}, game.currentPlayerIndex=${room.game.currentPlayerIndex}, phase=${room.phase?.phase}, drawPile=${room.game.drawPile.length}, discardPile=${room.game.discardPile.length}`);
         continue;
       }
-      // No snapshot found, fall back to lobby
       console.log(`[restore] Room ${room.roomId}: no game snapshot found, falling back to lobby`);
       room.status = "lobby";
       room.game = undefined;
@@ -43,8 +45,7 @@ function restoreRooms(): void {
   }
   if (restoredRoomIds.length > 0) {
     console.log(`[restore] Restored ${restoredRoomIds.length} game(s). Waiting ${RECONNECT_GRACE_MS / 1000}s for reconnections...`);
-    // After grace period, dissolve rooms where nobody reconnected
-    setTimeout(() => {
+    setTimeout(async () => {
       for (const roomId of restoredRoomIds) {
         const room = roomManager.get(roomId);
         if (!room) continue;
@@ -56,8 +57,8 @@ function restoreRooms(): void {
           console.log(`[cleanup] Room ${roomId}: no players reconnected within grace period, dissolving`);
           room.players = [];
           roomManager.delete(roomId);
-          persistence.deleteRoom(roomId);
-          persistence.deleteGameSnapshot(roomId);
+          await persistence.deleteRoom(roomId);
+          await persistence.deleteGameSnapshot(roomId);
         }
       }
       broadcastToLobby(getLobbyStateEvent());
@@ -65,10 +66,18 @@ function restoreRooms(): void {
   }
 }
 
-restoreRooms();
+// --- HTTP + WebSocket Server ---
+const httpServer = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+    return;
+  }
+  res.writeHead(404);
+  res.end();
+});
 
-// --- WebSocket Server ---
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ server: httpServer });
 
 wss.on("connection", (ws) => {
   const conn: PlayerConn = { playerId: "", ws, lastSeenAt: Date.now(), isInLobby: true };
@@ -119,7 +128,7 @@ wss.on("connection", (ws) => {
         send(ws, { type: "characterList", characters: [], maxSlots: MAX_CHARACTERS });
         return;
       }
-      const characters = listCharacters(conn.accountId);
+      const characters = await listCharacters(conn.accountId);
       send(ws, { type: "characterList", characters, maxSlots: MAX_CHARACTERS });
       return;
     }
@@ -129,7 +138,7 @@ wss.on("connection", (ws) => {
         send(ws, { type: "characterCreated", ok: false, error: "未登录" });
         return;
       }
-      const result = createCharacter(conn.accountId, event.displayName, event.overwriteSlotIndex);
+      const result = await createCharacter(conn.accountId, event.displayName, event.overwriteSlotIndex);
       if (result.ok && result.character) {
         send(ws, { type: "characterCreated", ok: true, character: result.character });
       } else {
@@ -143,7 +152,7 @@ wss.on("connection", (ws) => {
         send(ws, { type: "characterSelected", ok: false, error: "未登录" });
         return;
       }
-      const characters = listCharacters(conn.accountId);
+      const characters = await listCharacters(conn.accountId);
       const character = characters.find(c => c.characterId === event.characterId);
       if (!character) {
         send(ws, { type: "characterSelected", ok: false, error: "角色不存在" });
@@ -161,7 +170,7 @@ wss.on("connection", (ws) => {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Not in a room" });
         return;
       }
-      leaveRoom(conn, conn.playerId);
+      await leaveRoom(conn, conn.playerId);
       send(ws, getLobbyStateEvent());
       return;
     }
@@ -185,8 +194,8 @@ wss.on("connection", (ws) => {
 
       const room = roomManager.createRoom(event.roomId, playerId);
       roomManager.set(room.roomId, room);
-      persistence.saveRoom(room);
-      persistence.savePlayerSession(playerId, event.roomId);
+      await persistence.saveRoom(room);
+      await persistence.savePlayerSession(playerId, event.roomId);
       send(ws, roomSnapshot(room));
       broadcastToLobby(getLobbyStateEvent());
       return;
@@ -223,8 +232,8 @@ wss.on("connection", (ws) => {
       playersById.set(playerId, conn);
 
       roomManager.addPlayer(room, playerId);
-      persistence.saveRoom(room);
-      persistence.savePlayerSession(playerId, event.roomId);
+      await persistence.saveRoom(room);
+      await persistence.savePlayerSession(playerId, event.roomId);
       broadcastRoomSnapshot(room);
       broadcastToLobby(getLobbyStateEvent());
       return;
@@ -232,7 +241,7 @@ wss.on("connection", (ws) => {
 
     if (event.type === "reconnect") {
       handleReconnect(conn, ws, event.roomId, event.playerId);
-      persistence.savePlayerSession(event.playerId, event.roomId);
+      await persistence.savePlayerSession(event.playerId, event.roomId);
       return;
     }
 
@@ -281,8 +290,8 @@ wss.on("connection", (ws) => {
         });
       }
 
-      persistence.saveRoom(room);
-      persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
+      await persistence.saveRoom(room);
+      await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
       broadcastToLobby(getLobbyStateEvent());
       return;
     }
@@ -292,19 +301,25 @@ wss.on("connection", (ws) => {
 
     // Persist game state after action
     if (room.game) {
-      persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
+      await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
       if (room.status !== "in_game") {
-        persistence.saveRoom(room);
+        await persistence.saveRoom(room);
       }
     }
   });
 
-  ws.on("close", () => {
+  ws.on("close", async () => {
     if (conn.playerId) {
-      persistence.savePlayerSession(conn.playerId, null);
+      await persistence.savePlayerSession(conn.playerId, null);
     }
     handleDisconnect(conn);
   });
 });
 
-console.log(`pro-gyakuten server running on ws://${HOST}:${PORT}`);
+// Start server
+(async () => {
+  await restoreRooms();
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`pro-gyakuten server running on http://${HOST}:${PORT}`);
+  });
+})();

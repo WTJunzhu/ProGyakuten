@@ -28,12 +28,8 @@ export function Lobby({ wsSend }: { wsSend: (e: unknown) => void }) {
 
   const backToMenu = () => {
     useGameStore.getState().resetGame();
-    const token = useGameStore.getState().token;
-    if (token) {
-      useGameStore.getState().setView("lobby"); // will show character select
-    } else {
-      useGameStore.getState().setView("login");
-    }
+    useGameStore.setState({ token: null, selectedCharacterId: null, selectedCharacterName: null });
+    useGameStore.getState().setView("login");
   };
 
   return (

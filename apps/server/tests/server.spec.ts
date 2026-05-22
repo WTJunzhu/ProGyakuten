@@ -83,12 +83,12 @@ async function setupCharacter(client: WebSocket, username: string, charName: str
   await waitForEvent(client, "characterList");
 
   // Create character
-  sendEvent(client, { type: "createCharacter", displayName: charName });
+  sendEvent(client, { type: "createCharacter", token: "", displayName: charName });
   const created = await waitForEvent(client, "characterCreated");
   expect((created as any).ok).toBe(true);
 
   // Select character
-  sendEvent(client, { type: "selectCharacter", characterId: (created as any).character.characterId });
+  sendEvent(client, { type: "selectCharacter", token: "", characterId: (created as any).character.characterId });
   const selected = await waitForEvent(client, "characterSelected");
   expect((selected as any).ok).toBe(true);
 }
