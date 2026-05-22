@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@pro-gyakuten/core": "0.1.0",
     "@pro-gyakuten/protocol": "0.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

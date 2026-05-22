@@ -1,4 +1,4 @@
-import type { Card } from "@pro-gyakuten/protocol";
+import type { Card, GamePublicState } from "@pro-gyakuten/protocol";
 import { applyRuleHooks, effectiveTopCard, matchesSkipConstraint } from "../engine/state";
 import { COLORS, type GameStateInternal } from "../types";
 
@@ -94,4 +94,70 @@ export function hasWildComboSnatchOption(state: GameStateInternal, hand: Card[])
     }
   }
   return false;
+}
+
+// --- Public-state adapters (for client use without GameStateInternal) ---
+
+export function matchesSkipConstraintLite(params: {
+  card: Card;
+  skipConstraint?: GamePublicState["skipConstraint"];
+  playerId: string;
+}): boolean {
+  const { card, skipConstraint, playerId } = params;
+  if (!skipConstraint || skipConstraint.targetPlayerId !== playerId) return false;
+  if (card.kind === "wild_draw_four") return true;
+  if (card.kind !== skipConstraint.requiredKind) return false;
+  if (card.kind === "number") return card.value === skipConstraint.requiredValue;
+  return true;
+}
+
+export function isCardPlayableLite(params: {
+  card: Card;
+  topCard: Card;
+  drawCardStack: number;
+  skipConstraint?: GamePublicState["skipConstraint"];
+  currentPlayerId: string;
+  playerId: string;
+}): boolean {
+  const { card, topCard, drawCardStack, skipConstraint, currentPlayerId, playerId } = params;
+  if (currentPlayerId !== playerId) return false;
+
+  if (skipConstraint?.targetPlayerId === playerId) {
+    return matchesSkipConstraintLite({ card, skipConstraint, playerId });
+  }
+
+  const top = topCard;
+  if (drawCardStack > 0) {
+    if (top.kind === "wild_draw_four") {
+      return card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
+    }
+    return card.kind === "draw_two" || card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
+  }
+  if (card.kind === "wild") return false;
+  if (card.kind === "wild_draw_four") return true;
+  if (top.color !== "wild" && card.color === top.color) return true;
+  if (card.kind === "number" && top.kind === "number" && card.value === top.value) return true;
+  if (card.kind === "number" || top.kind === "number") return false;
+  return card.kind === top.kind;
+}
+
+export function isCardSnatchableLite(params: {
+  card: Card;
+  topCard: Card;
+  drawCardStack: number;
+}): boolean {
+  const { card, topCard, drawCardStack } = params;
+  const top = topCard;
+
+  if (drawCardStack > 0) {
+    if (top.kind === "wild_draw_four") return card.kind === "wild_draw_four";
+    const isPenaltyCard = card.kind === "draw_two" || card.kind === "wild_draw_four";
+    const isTopPenalty = top.kind === "draw_two";
+    return isPenaltyCard && isTopPenalty && (card.kind === "wild_draw_four" || card.color === top.color);
+  }
+
+  const isColorMatch = card.color === top.color;
+  const isKindMatch = card.kind === top.kind;
+  const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
+  return isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Card, AllowedAction } from "@pro-gyakuten/protocol";
+import type { Card, AllowedAction, GamePublicState } from "@pro-gyakuten/protocol";
+import { isCardPlayableLite, isCardSnatchableLite, matchesSkipConstraintLite } from "@pro-gyakuten/core";
 import { useGameStore } from "../stores/gameStore";
 import { useToastStore } from "../stores/toastStore";
 import { cardFace, cardCornerText } from "../utils/card";
@@ -13,79 +14,37 @@ function isActionAllowed(allowed: AllowedAction[], action: AllowedAction): boole
   return allowed.includes(action);
 }
 
-function matchesSkipConstraint(card: Card, state: NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>, playerId: string): boolean {
-  const constraint = state.skipConstraint;
-  if (!constraint || constraint.targetPlayerId !== playerId) return false;
-  if (card.kind === "wild_draw_four") return true;
-  if (card.kind !== constraint.requiredKind) return false;
-  if (card.kind === "number") return card.value === constraint.requiredValue;
-  return true;
-}
+type GameState = NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>;
 
-function isCardPlayable(card: Card, state: NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>, allowed: AllowedAction[], playerId: string, playableDrawnCardId: string | undefined, phase: string | undefined): boolean {
-  if (state.currentPlayerId !== playerId) return false;
+function isCardPlayable(card: Card, state: GameState, allowed: AllowedAction[], playerId: string, playableDrawnCardId: string | undefined, phase: string | undefined): boolean {
   if (phase === "post_draw_window") {
     return playableDrawnCardId === card.id && isActionAllowed(allowed, "play_drawn");
   }
   if (!isActionAllowed(allowed, "play")) return false;
-  if (state.skipConstraint?.targetPlayerId === playerId) {
-    return matchesSkipConstraint(card, state, playerId);
-  }
-  const top = state.topCard;
-  if (state.drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") {
-      return card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
-    }
-    return card.kind === "draw_two" || card.kind === "wild_draw_four" || (card.kind === "reverse" && card.color === top.color);
-  }
-  if (card.kind === "wild") return false;
-  if (card.kind === "wild_draw_four") return true;
-  if (top.color !== "wild" && card.color === top.color) return true;
-  if (card.kind === "number" && top.kind === "number" && card.value === top.value) return true;
-  if (card.kind === "number" || top.kind === "number") return false;
-  return card.kind === top.kind;
+  return isCardPlayableLite({ card, topCard: state.topCard, drawCardStack: state.drawCardStack, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
 }
 
-function isCardSnatchable(card: Card, state: NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>, allowed: AllowedAction[], phase: string | undefined): boolean {
+function isCardSnatchable(card: Card, state: GameState, allowed: AllowedAction[], phase: string | undefined): boolean {
   if (phase !== "snatch_window" || !isActionAllowed(allowed, "snatch")) return false;
-  const top = state.topCard;
-  if (state.drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") return card.kind === "wild_draw_four";
-    const isPenalty = card.kind === "draw_two" || card.kind === "wild_draw_four";
-    return isPenalty && (card.kind === "wild_draw_four" || card.color === top.color);
-  }
-  const isColorMatch = card.color === top.color;
-  const isKindMatch = card.kind === top.kind;
-  const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
-  return isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
+  return isCardSnatchableLite({ card, topCard: state.topCard, drawCardStack: state.drawCardStack });
 }
 
-function canStartWildCombo(card: Card, state: NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>, allowed: AllowedAction[], playerId: string, phase: string | undefined): boolean {
+function canStartWildCombo(card: Card, state: GameState, allowed: AllowedAction[], playerId: string, phase: string | undefined): boolean {
   if (card.kind !== "wild") return false;
   if (phase === "snatch_window") return isActionAllowed(allowed, "snatch");
   return state.currentPlayerId === playerId && isActionAllowed(allowed, "play");
 }
 
-function isWildComboTarget(card: Card, pendingWildCard: Card | null, pendingWildColor: string | null, state: NonNullable<ReturnType<typeof useGameStore.getState>["gameState"]>, allowed: AllowedAction[], playerId: string, phase: string | undefined): boolean {
+function isWildComboTarget(card: Card, pendingWildCard: Card | null, pendingWildColor: string | null, state: GameState, allowed: AllowedAction[], playerId: string, phase: string | undefined): boolean {
   if (!pendingWildCard || !pendingWildColor) return false;
   if (card.id === pendingWildCard.id) return false;
   if (card.kind === "wild" || card.kind === "wild_draw_four") return false;
   const transformed: Card = { ...card, color: pendingWildColor as Card["color"] };
   if (phase === "snatch_window") {
-    const top = state.topCard;
-    return isActionAllowed(allowed, "snatch") && transformed.color === top.color && transformed.kind === top.kind && (transformed.kind !== "number" || transformed.value === (top as Card).value);
+    return isCardSnatchable(transformed, state, allowed, phase);
   }
-  if (state.currentPlayerId !== playerId || !isActionAllowed(allowed, "play")) return false;
-  if (state.skipConstraint?.targetPlayerId === playerId) return matchesSkipConstraint(transformed, state, playerId);
-  const top = state.topCard;
-  if (state.drawCardStack > 0) {
-    if (top.kind === "wild_draw_four") return transformed.kind === "reverse" && transformed.color === top.color;
-    return transformed.kind === "draw_two" || (transformed.kind === "reverse" && transformed.color === top.color);
-  }
-  if (top.color !== "wild" && transformed.color === top.color) return true;
-  if (transformed.kind === "number" && top.kind === "number" && transformed.value === (top as Card).value) return true;
-  if (transformed.kind === "number" || top.kind === "number") return false;
-  return transformed.kind === top.kind;
+  if (!isActionAllowed(allowed, "play")) return false;
+  return isCardPlayableLite({ card: transformed, topCard: state.topCard, drawCardStack: state.drawCardStack, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
 }
 
 function getPassLabel(phase: string | undefined, drawCardStack: number): string {

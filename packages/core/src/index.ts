@@ -25,4 +25,13 @@ export {
 
 export { alignTurnToSkipConstraint, getPlayerHand, replenishPlayerHand, toPublicState } from "./engine/state";
 
-export { hasWildComboSnatchOption, isCardPlayable, isCardSnatchable, isComboPlayable, isExactSnatchMatch } from "./rules/playability";
+export {
+  hasWildComboSnatchOption,
+  isCardPlayable,
+  isCardPlayableLite,
+  isCardSnatchable,
+  isCardSnatchableLite,
+  isComboPlayable,
+  isExactSnatchMatch,
+  matchesSkipConstraintLite
+} from "./rules/playability";
