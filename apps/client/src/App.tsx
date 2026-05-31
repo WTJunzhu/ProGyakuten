@@ -4,9 +4,13 @@ import { GameWebSocket } from "./utils/websocket";
 import { TitleScreen } from "./components/TitleScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { CharacterSelect } from "./components/CharacterSelect";
+import { CharacterDraft } from "./components/CharacterDraft";
+import { GameIntro } from "./components/GameIntro";
 import { Lobby } from "./components/Lobby";
 import { Room } from "./components/Room";
 import { GameBoard } from "./components/GameBoard";
+import { ChatWindow } from "./components/ChatWindow";
+import { PresentationOverlay } from "./components/PresentationOverlay";
 import { ToastContainer } from "./components/Toast";
 import { ColorModal } from "./components/ColorModal";
 import { FloatingButtons } from "./components/FloatingButtons";
@@ -36,7 +40,7 @@ export default function App() {
     if (view === "title") return;
     if (view === "login" || view === "lobby") {
       syncViewBgm("lobby");
-    } else if (view === "room") {
+    } else if (view === "room" || view === "character_draft" || view === "game_intro") {
       syncViewBgm("room");
     } else if (view === "game") {
       startGameBgmCycle();
@@ -131,14 +135,27 @@ export default function App() {
   const selectedCharacterId = useGameStore((s) => s.selectedCharacterId);
   const effectiveView = (view === "lobby" && token && !selectedCharacterId) ? "character" : view;
 
+  // 判断当前是否在房间内（用于显示聊天窗口）
+  const currentRoomId = useGameStore((s) => s.currentRoomId);
+  const inRoom = !!currentRoomId && (
+    effectiveView === "room" ||
+    effectiveView === "character_draft" ||
+    effectiveView === "game_intro" ||
+    effectiveView === "game"
+  );
+
   return (
     <>
       {effectiveView === "title" && <TitleScreen />}
       {effectiveView === "login" && <LoginScreen onConnect={handleConnect} wsSend={wsSend} />}
       {effectiveView === "character" && wsReady && <CharacterSelect wsSend={wsSend} />}
+      {effectiveView === "character_draft" && wsReady && <CharacterDraft wsSend={wsSend} />}
+      {effectiveView === "game_intro" && wsReady && <GameIntro />}
       {effectiveView === "lobby" && wsReady && <Lobby wsSend={wsSend} />}
       {effectiveView === "room" && wsReady && <Room wsSend={wsSend} />}
       {effectiveView === "game" && wsReady && <GameBoard wsSend={wsSend} logCollapsed={logCollapsed} />}
+      {inRoom && wsReady && <ChatWindow wsSend={wsSend} />}
+      <PresentationOverlay />
       <FloatingButtons logCollapsed={logCollapsed} onToggleLog={() => setLogCollapsed((v) => !v)} />
       <ColorModal />
       <ToastContainer />

@@ -1,5 +1,5 @@
 import type { GameStateInternal } from "@pro-gyakuten/core";
-import type { TurnPhaseInfo, TurnPhase } from "@pro-gyakuten/protocol";
+import type { TurnPhaseInfo, TurnPhase, CharacterPublicInfo } from "@pro-gyakuten/protocol";
 import type { WebSocket } from "ws";
 
 export interface PlayerConn {
@@ -15,12 +15,17 @@ export interface PlayerConn {
   characterName?: string;
 }
 
+export interface CharacterDraftState {
+  options: Record<string, CharacterPublicInfo[]>;
+  selections: Record<string, string>;
+}
+
 export interface RoomState {
   roomId: string;
   players: string[];
   ownerPlayerId: string;
   game?: GameStateInternal;
-  status: "lobby" | "in_game" | "game_over" | "finished";
+  status: "lobby" | "character_selection" | "game_intro" | "in_game" | "game_over" | "finished";
   teams: { teamA: string[]; teamB: string[] };
   phase?: TurnPhaseInfo;
   phaseToken: number;
@@ -30,6 +35,7 @@ export interface RoomState {
     playable: boolean;
     turnId: number;
   };
+  characterDraft?: CharacterDraftState;
 }
 
 export const PORT = Number(process.env.PORT ?? "3001");
@@ -39,3 +45,5 @@ export const SNATCH_WINDOW_TIMEOUT_MS = Number(process.env.SNATCH_WINDOW_TIMEOUT
 export const POST_DRAW_WINDOW_TIMEOUT_MS = Number(process.env.POST_DRAW_WINDOW_TIMEOUT_MS ?? "5000");
 export const SNATCH_AUTO_SKIP_MS = Number(process.env.SNATCH_AUTO_SKIP_MS ?? "5000");
 export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS ?? "20000");
+export const CHARACTER_DRAFT_TIMEOUT_MS = Number(process.env.CHARACTER_DRAFT_TIMEOUT_MS ?? "30000");
+export const GAME_INTRO_MS = Number(process.env.GAME_INTRO_MS ?? "5000");

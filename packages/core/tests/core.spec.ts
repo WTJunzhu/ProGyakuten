@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import type { Card } from "@pro-gyakuten/protocol";
 import {
   applyCallUno,
@@ -16,7 +16,14 @@ import {
   hasWildComboSnatchOption,
   getPlayerHand,
   toPublicState,
-  alignTurnToSkipConstraint
+  alignTurnToSkipConstraint,
+  registerCharacter,
+  getCharacter,
+  getAllCharacters,
+  applyCharacterSkills,
+  canUseSkill,
+  consumeSkillUse,
+  characterRegistry
 } from "../src/index";
 
 // Helper: force a deterministic game state after createGame
@@ -898,5 +905,189 @@ describe("combo snatch with Wild", () => {
     const originalCard: Card = { id: "green_rev", color: "green", kind: "reverse" };
 
     expect(isCardSnatchableLite({ card: originalCard, topCard, drawCardStack: 0 })).toBe(false);
+  });
+});
+
+// ============================================================
+// 新钩子触发测试
+// ============================================================
+describe("character system hooks", () => {
+  it("afterCardDrawn fires when drawing a card", () => {
+    const state = setup2p("hook_draw1");
+    let firedCount = 0;
+    state.rules.hooks.push({ afterCardDrawn: () => { firedCount++; } });
+
+    applyDrawCard(state, state.players[0].playerId, state.turnId, 1);
+    expect(firedCount).toBe(1);
+  });
+
+  it("afterCardDrawn receives correct player and card", () => {
+    const state = setup2p("hook_draw2");
+    let capturedPlayerId = "";
+    state.rules.hooks.push({
+      afterCardDrawn: ({ player, card }) => {
+        capturedPlayerId = player.playerId;
+        expect(card).toBeDefined();
+      }
+    });
+
+    applyDrawCard(state, state.players[0].playerId, state.turnId, 1);
+    expect(capturedPlayerId).toBe("p1");
+  });
+
+  it("beforePenaltyDraw fires before penalty cards are drawn", () => {
+    const state = setup4p("hook_penalty1");
+    let capturedCount = 0;
+    state.rules.hooks.push({ beforePenaltyDraw: ({ count }) => { capturedCount = count; } });
+
+    state.drawCardStack = 2;
+    state.penaltySource = "draw_two";
+    applyPassTurn(state, state.players[0].playerId, state.turnId, 1);
+    expect(capturedCount).toBe(2);
+  });
+
+  it("beforePenaltyDraw fires with correct drawCardStack count", () => {
+    const state = setup4p("hook_penalty2");
+    let firedWith = 0;
+    state.rules.hooks.push({ beforePenaltyDraw: ({ count }) => { firedWith = count; } });
+
+    state.drawCardStack = 6;
+    state.penaltySource = "draw_two";
+    applyPassTurn(state, state.players[0].playerId, state.turnId, 1);
+    expect(firedWith).toBe(6);
+  });
+
+  it("onSkipConstraintSet fires when a skip card is played", () => {
+    const state = setup4p("hook_skip1");
+    let fired = false;
+    state.rules.hooks.push({ onSkipConstraintSet: () => { fired = true; } });
+
+    state.players[0].hand = [{ id: "skip_red", color: "red", kind: "skip" }];
+    applyPlayCard(state, "p1", state.turnId, 1, "skip_red");
+    expect(fired).toBe(true);
+  });
+
+  it("onSkipConstraintSet receives correct source and target players", () => {
+    const state = setup4p("hook_skip2");
+    let sourceId = "";
+    let targetId = "";
+    state.rules.hooks.push({
+      onSkipConstraintSet: ({ sourcePlayer, targetPlayer }) => {
+        sourceId = sourcePlayer.playerId;
+        targetId = targetPlayer.playerId;
+      }
+    });
+
+    state.players[0].hand = [{ id: "skip_red", color: "red", kind: "skip" }];
+    applyPlayCard(state, "p1", state.turnId, 1, "skip_red");
+    expect(sourceId).toBe("p1");
+    expect(targetId).toBe("p2");
+  });
+});
+
+// ============================================================
+// 角色注册表测试
+// ============================================================
+describe("character registry", () => {
+  beforeEach(() => {
+    characterRegistry.clear();
+  });
+
+  it("registerCharacter adds a character to the registry", () => {
+    registerCharacter({ id: "test_char", name: "测试角色", description: "desc", skills: [] });
+    expect(getCharacter("test_char")).toBeDefined();
+    expect(getCharacter("test_char")?.name).toBe("测试角色");
+  });
+
+  it("getCharacter returns undefined for unknown id", () => {
+    expect(getCharacter("nonexistent")).toBeUndefined();
+  });
+
+  it("getAllCharacters returns all registered characters", () => {
+    registerCharacter({ id: "char_a", name: "A", description: "", skills: [] });
+    registerCharacter({ id: "char_b", name: "B", description: "", skills: [] });
+    expect(getAllCharacters()).toHaveLength(2);
+  });
+
+  it("applyCharacterSkills sets characterAssignments", () => {
+    registerCharacter({ id: "char_a", name: "A", description: "", skills: [] });
+    const state = setup2p("char_apply1");
+    applyCharacterSkills(state, { p1: "char_a" });
+    expect(state.characterAssignments?.["p1"]).toBe("char_a");
+  });
+
+  it("applyCharacterSkills injects skill hooks into game rules", () => {
+    let hookFired = false;
+    registerCharacter({
+      id: "hook_char",
+      name: "钩子角色",
+      description: "",
+      skills: [{
+        id: "hook_skill",
+        name: "钩子技能",
+        description: "",
+        isActive: false,
+        createHooks: (playerId) => ({
+          afterCardPlayed: ({ player }) => {
+            if (player.playerId === playerId) hookFired = true;
+          }
+        })
+      }]
+    });
+
+    const state = setup2p("char_apply2");
+    applyCharacterSkills(state, { p1: "hook_char" });
+
+    state.players[0].hand = [
+      { id: "red_3", color: "red", kind: "number", value: 3 },
+      { id: "red_4", color: "red", kind: "number", value: 4 }
+    ];
+    applyPlayCard(state, "p1", state.turnId, 1, "red_3");
+    expect(hookFired).toBe(true);
+  });
+
+  it("applyCharacterSkills initializes skillState for limited-use skills", () => {
+    registerCharacter({
+      id: "limited_char",
+      name: "限次角色",
+      description: "",
+      skills: [{
+        id: "limited_skill",
+        name: "限次技能",
+        description: "",
+        isActive: true,
+        maxUsesPerGame: 2
+      }]
+    });
+
+    const state = setup2p("char_apply3");
+    applyCharacterSkills(state, { p1: "limited_char" });
+    expect(state.skillState?.["p1"]?.["limited_skill"]?.usesRemaining).toBe(2);
+  });
+
+  it("canUseSkill returns true when uses remain", () => {
+    const state = setup2p("skill_use1");
+    state.skillState = { p1: { skill_a: { usesRemaining: 1 } } };
+    expect(canUseSkill(state, "p1", "skill_a")).toBe(true);
+  });
+
+  it("canUseSkill returns false when uses exhausted", () => {
+    const state = setup2p("skill_use2");
+    state.skillState = { p1: { skill_a: { usesRemaining: 0 } } };
+    expect(canUseSkill(state, "p1", "skill_a")).toBe(false);
+  });
+
+  it("canUseSkill returns false when already used this turn", () => {
+    const state = setup2p("skill_use3");
+    state.skillState = { p1: { skill_a: { usesRemaining: 3, lastUsedTurnId: state.turnId } } };
+    expect(canUseSkill(state, "p1", "skill_a")).toBe(false);
+  });
+
+  it("consumeSkillUse decrements usesRemaining", () => {
+    const state = setup2p("skill_use4");
+    state.skillState = { p1: { skill_a: { usesRemaining: 3 } } };
+    consumeSkillUse(state, "p1", "skill_a");
+    expect(state.skillState?.["p1"]?.["skill_a"]?.usesRemaining).toBe(2);
+    expect(state.skillState?.["p1"]?.["skill_a"]?.lastUsedTurnId).toBe(state.turnId);
   });
 });

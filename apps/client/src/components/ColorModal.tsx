@@ -9,6 +9,8 @@ export function ColorModal() {
   const pendingWildColor = useGameStore((s) => s.pendingWildColor);
   const pendingWildAction = useGameStore((s) => s.pendingWildAction);
   const setPendingWild = useGameStore((s) => s.setPendingWild);
+  const setPendingSkill = useGameStore((s) => s.setPendingSkill);
+  const pendingSkill = useGameStore((s) => s.pendingSkill);
   const wsRef = (window as unknown as { __wsRef: { send: (e: unknown) => void } }).__wsRef;
 
   if (!pendingWildCard || pendingWildColor) return null;
@@ -17,6 +19,19 @@ export function ColorModal() {
     const state = useGameStore.getState();
     const toast = useToastStore.getState().showToast;
 
+    // ── 七色染刃：选颜色后发送 useSkill ──────────────────
+    if (pendingWildAction === "skill_recolor" && pendingSkill) {
+      wsRef?.send({
+        type: "useSkill",
+        skillId: pendingSkill.skillId,
+        payload: { cardId: pendingWildCard.id, newColor: color }
+      });
+      setPendingWild(null, null, null);
+      setPendingSkill(null);
+      return;
+    }
+
+    // ── Wild 单独出牌：先选颜色，再点目标牌 ────────────────
     if (pendingWildCard.kind === "wild") {
       setPendingWild(pendingWildCard, color, state.pendingWildAction);
       toast("颜色已选择，请再点击一张非 Wild 牌完成组合出牌", "info");
@@ -47,12 +62,18 @@ export function ColorModal() {
 
   const handleBackdrop = () => {
     setPendingWild(null, null, null);
+    if (pendingWildAction === "skill_recolor") setPendingSkill(null);
   };
+
+  const title =
+    pendingWildAction === "skill_recolor"
+      ? "请选择变换后的颜色（七色染刃）"
+      : "请选择变色后的颜色";
 
   return (
     <div className="modal-overlay" onClick={handleBackdrop}>
       <div className="panel modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>请选择变色后的颜色</h3>
+        <h3>{title}</h3>
         <div className="color-options">
           {COLORS.map((color) => (
             <div

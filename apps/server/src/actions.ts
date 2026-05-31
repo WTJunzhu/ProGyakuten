@@ -1,5 +1,5 @@
 import type { AllowedAction } from "@pro-gyakuten/protocol";
-import { getPlayerHand, isCardSnatchable, hasWildComboSnatchOption } from "@pro-gyakuten/core";
+import { getPlayerHand, isCardSnatchable, hasWildComboSnatchOption, getCharacter, canUseSkill } from "@pro-gyakuten/core";
 import type { RoomState } from "./types.js";
 
 export function getAllowedActions(room: RoomState, playerId: string): AllowedAction[] {
@@ -11,6 +11,21 @@ export function getAllowedActions(room: RoomState, playerId: string): AllowedAct
 
   if (player?.missedUnoPending && player.hand.length === 1) {
     actions.push("callUno");
+  }
+
+  // 技能可用时随时加入（任意阶段）
+  const charId = room.game.characterAssignments?.[playerId];
+  if (charId) {
+    const character = getCharacter(charId);
+    if (character) {
+      const hasActivatable = character.skills.some(
+        (skill) =>
+          skill.onActivate &&
+          canUseSkill(room.game!, playerId, skill.id) &&
+          (skill.canActivate ? skill.canActivate(room.game!, playerId) : false)
+      );
+      if (hasActivatable) actions.push("use_skill");
+    }
   }
 
   if (phase === "turn_main") {

@@ -16,7 +16,7 @@ export interface PlayerPublicState {
 }
 
 export type TurnPhase = "turn_main" | "snatch_window" | "post_draw_window";
-export type AllowedAction = "play" | "draw" | "pass" | "callUno" | "check_uno" | "snatch" | "play_drawn" | "skip_snatch";
+export type AllowedAction = "play" | "draw" | "pass" | "callUno" | "check_uno" | "snatch" | "play_drawn" | "skip_snatch" | "use_skill";
 
 export interface TurnPhaseInfo {
   phase: TurnPhase;
@@ -177,6 +177,25 @@ export interface ComboPlayEvent {
   seq: number;
 }
 
+export interface SelectGameCharacterEvent {
+  type: "selectGameCharacter";
+  characterId: string;
+}
+
+export interface UseSkillEvent {
+  type: "useSkill";
+  skillId: string;
+  payload?: unknown;
+}
+
+export type ChatScope = "room" | "team";
+
+export interface ChatEvent {
+  type: "chat";
+  message: string;
+  scope: ChatScope;
+}
+
 export type ClientEvent =
   | CreateRoomEvent
   | JoinRoomEvent
@@ -196,13 +215,16 @@ export type ClientEvent =
   | LoginEvent
   | ListCharactersEvent
   | CreateCharacterEvent
-  | SelectCharacterEvent;
+  | SelectCharacterEvent
+  | SelectGameCharacterEvent
+  | UseSkillEvent
+  | ChatEvent;
 
 export interface RoomSnapshotEvent {
   type: "roomSnapshot";
   roomId: string;
   players: PlayerPublicState[];
-  status: "lobby" | "in_game" | "game_over" | "finished";
+  status: "lobby" | "character_selection" | "in_game" | "game_over" | "finished";
 }
 
 export interface GameViewEventBase {
@@ -214,6 +236,8 @@ export interface GameViewEventBase {
   lastSeq?: number;
   allowedActions?: AllowedAction[];
   playableDrawnCardId?: string;
+  /** 客户端演出系统的触发键，对应 PresentationRegistry 中的 id */
+  presentationHint?: string;
 }
 
 export interface GameStartEvent extends GameViewEventBase {
@@ -283,6 +307,46 @@ export interface CharacterSelectedEvent {
   error?: string;
 }
 
+export type SkillInputType = "none" | "target" | "card" | "card_and_color";
+
+export interface CharacterSkillPublicInfo {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  inputType?: SkillInputType;
+  maxUsesPerGame?: number;
+  maxUsesPerTurn?: number;
+  /** 技能发动时在客户端触发的演出 id（对应 PresentationRegistry） */
+  presentationId?: string;
+}
+
+export interface CharacterPublicInfo {
+  id: string;
+  name: string;
+  description: string;
+  skills: CharacterSkillPublicInfo[];
+}
+
+export interface CharacterDraftEvent {
+  type: "characterDraft";
+  characters: CharacterPublicInfo[];
+  timeoutMs: number;
+}
+
+export interface GameCharacterRevealEvent {
+  type: "gameCharacterReveal";
+  assignments: Record<string, CharacterPublicInfo>;
+}
+
+export interface ChatMessageEvent {
+  type: "chatMessage";
+  fromPlayerId: string;
+  message: string;
+  scope: ChatScope;
+  timestamp: number;
+}
+
 export type ServerEvent =
   | RoomSnapshotEvent
   | GameStartEvent
@@ -293,4 +357,7 @@ export type ServerEvent =
   | AuthResultEvent
   | CharacterListEvent
   | CharacterCreatedEvent
-  | CharacterSelectedEvent;
+  | CharacterSelectedEvent
+  | CharacterDraftEvent
+  | GameCharacterRevealEvent
+  | ChatMessageEvent;

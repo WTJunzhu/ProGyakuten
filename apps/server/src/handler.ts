@@ -7,7 +7,10 @@ import {
   applyPassTurn,
   applyPlayCard,
   applySnatchCard,
-  isCardPlayable
+  isCardPlayable,
+  getCharacter,
+  canUseSkill,
+  consumeSkillUse
 } from "@pro-gyakuten/core";
 import type { ClientEvent } from "@pro-gyakuten/protocol";
 import type { RoomState } from "./types.js";
@@ -40,6 +43,38 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       return;
     }
     broadcastGameState(room);
+    return;
+  }
+
+  // ── 技能发动（任意阶段均可，由 canActivate 限制时机）──
+  if (event.type === "useSkill") {
+    const charId = room.game.characterAssignments?.[event.playerId];
+    if (!charId) { rejectWith("你没有角色"); return; }
+
+    const character = getCharacter(charId);
+    const skill = character?.skills.find((s) => s.id === event.skillId);
+    if (!skill?.onActivate) { rejectWith("技能不存在或不可主动发动"); return; }
+
+    if (!canUseSkill(room.game, event.playerId, event.skillId)) {
+      rejectWith("技能次数已用尽"); return;
+    }
+    if (skill.canActivate && !skill.canActivate(room.game, event.playerId)) {
+      rejectWith("当前不满足技能发动条件"); return;
+    }
+
+    const result = skill.onActivate(room.game, event.playerId, event.payload);
+    if (!result.ok) {
+      rejectWith(result.message ?? "技能发动失败", result.code === "INVALID_CARD" ? "INVALID_CARD" : "INVALID_ACTION");
+      return;
+    }
+
+    // 扣除限次技能的使用次数
+    if (skill.maxUsesPerGame !== undefined || skill.maxUsesPerTurn !== undefined) {
+      consumeSkillUse(room.game, event.playerId, event.skillId);
+    }
+
+    const msg = finalizeAction(room, result, `${event.playerId} 发动技能「${skill.name}」`);
+    if (room.status === "in_game") broadcastGameState(room, msg ?? undefined, skill.presentationId);
     return;
   }
 

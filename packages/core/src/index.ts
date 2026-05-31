@@ -1,11 +1,14 @@
-export type { ActionResult, GameStateInternal, PlayerState } from "./types";
+export type { ActionResult, GameStateInternal, PlayerState, SkillStateEntry } from "./types";
 export type {
   CardRuleContext,
   CreateGameRulesOptions,
   GameRuleConfig,
   GameRuleHookSet,
   GameRules,
+  PenaltyDrawContext,
   PhaseDurations,
+  SkipConstraintContext,
+  TurnStartContext,
   UnoPenaltyContext
 } from "./modifiers/types";
 
@@ -23,7 +26,13 @@ export {
   applySnatchCard
 } from "./actions";
 
-export { alignTurnToSkipConstraint, getPlayerHand, replenishPlayerHand, toPublicState } from "./engine/state";
+export {
+  alignTurnToSkipConstraint,
+  applyAfterTurnStart,
+  getPlayerHand,
+  replenishPlayerHand,
+  toPublicState
+} from "./engine/state";
 
 export {
   hasWildComboSnatchOption,
@@ -35,3 +44,7 @@ export {
   isExactSnatchMatch,
   matchesSkipConstraintLite
 } from "./rules/playability";
+
+export type { CharacterDefinition, CharacterPublicInfo, SkillDefinition, SkillPublicInfo, SkillInputType } from "./characters/types";
+export { characterRegistry, registerCharacter, getCharacter, getAllCharacters } from "./characters/registry";
+export { applyCharacterSkills, canUseSkill, consumeSkillUse } from "./characters/apply";

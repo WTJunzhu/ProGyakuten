@@ -32,7 +32,8 @@ export function markDisconnected(playerId: string): void {
     const room = roomManager.get(latest.roomId);
     if (!room) return;
 
-    if (room.status === "lobby" || room.status === "game_over") {
+    if (room.status === "lobby" || room.status === "game_over" ||
+        room.status === "character_selection" || room.status === "game_intro") {
       removePlayerFromLobbyRoom(room, playerId);
       if (room.players.length === 0) {
         roomManager.delete(room.roomId);

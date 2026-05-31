@@ -6,11 +6,16 @@ import type {
   AllowedAction,
   LobbyRoomInfo,
   ServerEvent,
-  CardColor
+  CardColor,
+  CharacterPublicInfo,
+  SkillInputType,
+  ChatScope
 } from "@pro-gyakuten/protocol";
 import { useToastStore } from "./toastStore";
+import { triggerPresentation } from "../presentation/store";
+import { playResultBgm, syncGameBgm } from "../audio";
 
-export type View = "title" | "login" | "lobby" | "room" | "game";
+export type View = "title" | "login" | "lobby" | "room" | "game" | "character_draft" | "game_intro";
 
 const SESSIONS_KEY = "new_uno_sessions";
 const LAST_PLAYER_KEY = "new_uno_last_player";
@@ -83,8 +88,12 @@ interface GameState {
   // Wild combo pending state
   pendingWildCard: Card | null;
   pendingWildColor: Exclude<CardColor, "wild"> | null;
-  pendingWildAction: "play" | "snatch" | "combo" | null;
-  setPendingWild: (card: Card | null, color: Exclude<CardColor, "wild"> | null, action: "play" | "snatch" | "combo" | null) => void;
+  pendingWildAction: "play" | "snatch" | "combo" | "skill_recolor" | null;
+  setPendingWild: (card: Card | null, color: Exclude<CardColor, "wild"> | null, action: "play" | "snatch" | "combo" | "skill_recolor" | null) => void;
+
+  // Skill activation pending state
+  pendingSkill: { skillId: string; inputType: SkillInputType } | null;
+  setPendingSkill: (skill: { skillId: string; inputType: SkillInputType } | null) => void;
 
   // Game over
   gameOverState: GamePublicState | null;
@@ -92,6 +101,14 @@ interface GameState {
   // Log
   logLines: string[];
   addLog: (line: string) => void;
+
+  // Character draft (in-game character selection)
+  characterDraftOptions: CharacterPublicInfo[];
+  characterDraftTimeoutMs: number;
+  characterAssignments: Record<string, CharacterPublicInfo>;
+
+  // Team chat
+  chatMessages: { fromPlayerId: string; message: string; scope: ChatScope; timestamp: number }[];
 
   nextSeq: () => number;
   reorderHand: (fromIndex: number, toIndex: number) => void;
@@ -222,10 +239,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendingWildAction: null,
   setPendingWild: (card, color, action) => set({ pendingWildCard: card, pendingWildColor: color, pendingWildAction: action }),
 
+  pendingSkill: null,
+  setPendingSkill: (skill) => set({ pendingSkill: skill }),
+
   gameOverState: null,
 
   logLines: [],
   addLog: (line) => set((s) => ({ logLines: [`[${new Date().toLocaleTimeString()}] ${line}`, ...s.logLines].slice(0, 100) })),
+
+  characterDraftOptions: [],
+  characterDraftTimeoutMs: 30000,
+  characterAssignments: {},
+
+  chatMessages: [],
 
   nextSeq: () => {
     const next = get().lastSeq + 1;
@@ -250,13 +276,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         const currentRoomId = get().currentRoomId;
         const currentView = get().view;
         set({ rooms: event.rooms });
-        // Only clear session if we're in the lobby and the room is gone.
-        // If in "game" or "room" view, the room may be mid-reconnection —
-        // let roomSnapshot/reconnect handle the transition.
         if (currentView === "lobby" && currentRoomId) {
           const roomStillExists = event.rooms.some((r) => r.roomId === currentRoomId);
           if (!roomStillExists) {
-            set({ currentRoomId: null });
+            set({ currentRoomId: null, chatMessages: [] });  // 房间消失时清空聊天
             get().clearSession();
           }
         }
@@ -276,7 +299,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             teammateHands: {},
             phase: null,
             allowedActions: [],
-            gameOverState: null
+            gameOverState: null,
+            chatMessages: []    // 离开房间时清空聊天
           });
           get().clearSession();
           // Request fresh lobby state
@@ -309,6 +333,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           pendingWildAction: null,
           view: "game"
         });
+        triggerPresentation("game.intro");
         get().saveSession();
         break;
 
@@ -332,6 +357,22 @@ export const useGameStore = create<GameState>((set, get) => ({
           addLog(event.message);
           toast(event.message, "info");
         }
+
+        // ── 演出触发 ──────────────────────────────────────────────
+        if (event.presentationHint) {
+          // 服务端指定演出（技能等）
+          triggerPresentation(event.presentationHint);
+        } else {
+          // 客户端推断：弃牌堆顶牌变化 → 牌效音效
+          const prevTop = prev.gameState?.topCard;
+          if (prevTop && event.state.topCard.id !== prevTop.id) {
+            triggerPresentation(`card.${event.state.topCard.kind}`);
+          }
+        }
+
+        // ── 动态 BGM（优势/劣势切换）────────────────────────────
+        syncGameBgm(event.state, prev.playerId);
+
         get().saveSession();
         break;
       }
@@ -347,6 +388,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         });
         addLog(`游戏结束: ${won ? "我方胜利" : "我方失败"}`);
         toast(won ? "我方胜利" : "我方失败", won ? "success" : "warning");
+        // 胜负 BGM + 结算演出
+        playResultBgm(won);
+        triggerPresentation(won ? "game.result.win" : "game.result.lose");
         break;
       }
 
@@ -399,6 +443,39 @@ export const useGameStore = create<GameState>((set, get) => ({
           toast(event.error, "error");
         }
         break;
+
+      case "characterDraft":
+        set({
+          characterDraftOptions: event.characters,
+          characterDraftTimeoutMs: event.timeoutMs,
+          view: "character_draft"
+        });
+        break;
+
+      case "gameCharacterReveal":
+        set({
+          characterAssignments: event.assignments,
+          view: "game_intro"
+        });
+        break;
+
+      case "teamChatMessage":
+        set((s) => ({
+          chatMessages: [
+            ...s.chatMessages,
+            { fromPlayerId: event.fromPlayerId, message: event.message, timestamp: event.timestamp }
+          ].slice(-200)
+        }));
+        break;
+
+      case "chatMessage":
+        set((s) => ({
+          chatMessages: [
+            ...s.chatMessages,
+            { fromPlayerId: event.fromPlayerId, message: event.message, scope: event.scope, timestamp: event.timestamp }
+          ].slice(-200)
+        }));
+        break;
     }
   },
 
@@ -415,7 +492,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       gameOverState: null,
       pendingWildCard: null,
       pendingWildColor: null,
-      pendingWildAction: null
+      pendingWildAction: null,
+      pendingSkill: null,
+      characterDraftOptions: [],
+      characterAssignments: {}
+      // 注意：chatMessages 不在此清空——游戏重开时聊天记录保留
     });
     get().clearSession();
   }

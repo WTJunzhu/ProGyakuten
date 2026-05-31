@@ -1,20 +1,20 @@
 import http from "node:http";
-import { createGame, getPlayerHand, toPublicState } from "@pro-gyakuten/core";
+import { getPlayerHand, toPublicState } from "@pro-gyakuten/core";
 import type { ClientEvent } from "@pro-gyakuten/protocol";
 import { WebSocketServer } from "ws";
 import type { PlayerConn, RoomState } from "./types.js";
-import { PORT, HOST, TURN_TIMEOUT_MS, RECONNECT_GRACE_MS } from "./types.js";
+import { PORT, HOST, RECONNECT_GRACE_MS } from "./types.js";
 import { connections, playersById, send } from "./state.js";
 import { roomManager } from "./room-manager.js";
 import { broadcastToLobby, getLobbyStateEvent, roomSnapshot, getTeammateHands } from "./broadcast.js";
 import { broadcastRoomSnapshot, leaveRoom } from "./room.js";
 import { getAllowedActions } from "./actions.js";
-import { setPhase } from "./phase.js";
 import { handleAction } from "./handler.js";
 import { handleReconnect, handleDisconnect } from "./connection.js";
 import { persistence, db } from "./db.js";
 import { register, login, verifyToken, setTokenCharacter } from "./auth.js";
 import { listCharacters, createCharacter } from "./character.js";
+import { startCharacterDraft, handleSelectGameCharacter } from "./character-draft.js";
 
 const MAX_CHARACTERS = 3;
 
@@ -25,6 +25,11 @@ async function restoreRooms(): Promise<void> {
   const rooms = await persistence.loadAllRooms();
   const restoredRoomIds: string[] = [];
   for (const room of rooms) {
+    if (room.status === "character_selection" || room.status === "game_intro") {
+      room.status = "lobby";
+      room.game = undefined;
+      room.characterDraft = undefined;
+    }
     if (room.status === "in_game") {
       const snapshot = await persistence.loadGameSnapshot(room.roomId);
       if (snapshot) {
@@ -264,35 +269,79 @@ wss.on("connection", (ws) => {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Only owner can start" });
         return;
       }
+      if (room.status !== "lobby") {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Game already started" });
+        return;
+      }
       if (![2, 4, 6].includes(room.players.length)) {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Need exactly 2, 4, or 6 players" });
         return;
       }
 
-      room.game = createGame(room.roomId, room.players);
-      room.status = "in_game";
-      room.phaseToken = 0;
-      room.drawnCardWindow = undefined;
-      setPhase(room, "turn_main", room.game.players[room.game.currentPlayerIndex].playerId, TURN_TIMEOUT_MS);
+      startCharacterDraft(room);
+      return;
+    }
 
-      for (const playerId of room.players) {
-        const roomConn = playersById.get(playerId);
-        if (!roomConn) continue;
-        send(roomConn.ws, {
-          type: "gameStart",
-          state: toPublicState(room.game),
-          phase: room.phase!,
-          hand: getPlayerHand(room.game, playerId),
-          teammateHands: getTeammateHands(room, playerId),
-          lastSeq: room.game.players.find((player) => player.playerId === playerId)?.lastSeq,
-          allowedActions: getAllowedActions(room, playerId),
-          playableDrawnCardId: undefined
-        });
+    if (event.type === "selectGameCharacter") {
+      if (room.status !== "character_selection") {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "当前不是角色选择阶段" });
+        return;
+      }
+      if (!conn.playerId) return;
+      handleSelectGameCharacter(room, conn.playerId, event.characterId);
+      return;
+    }
+
+    if (event.type === "teamChat") {
+      if (room.status !== "in_game" || !room.game || !conn.playerId) return;
+      const trimmed = event.message.trim().slice(0, 200);
+      if (!trimmed) return;
+
+      const team = room.game.teams.teamA.includes(conn.playerId) ? "teamA" : "teamB";
+      const recipients = room.game.teams[team];
+      const ts = Date.now();
+      for (const pid of recipients) {
+        const rc = playersById.get(pid);
+        if (rc && rc.roomId === room.roomId) {
+          send(rc.ws, {
+            type: "teamChatMessage",
+            fromPlayerId: conn.playerId,
+            message: trimmed,
+            timestamp: ts
+          });
+        }
+      }
+      return;
+    }
+
+    if (event.type === "chat") {
+      if (!conn.playerId) return;
+      const trimmed = event.message.trim().slice(0, 200);
+      if (!trimmed) return;
+
+      const ts = Date.now();
+      let recipients: string[];
+
+      if (event.scope === "team") {
+        // 使用 room.teams 确定队伍（游戏开始前也可用）
+        const team = room.teams.teamA.includes(conn.playerId) ? "teamA" : "teamB";
+        recipients = room.teams[team];
+      } else {
+        recipients = room.players;
       }
 
-      await persistence.saveRoom(room);
-      await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
-      broadcastToLobby(getLobbyStateEvent());
+      for (const pid of recipients) {
+        const rc = playersById.get(pid);
+        if (rc && rc.roomId === room.roomId) {
+          send(rc.ws, {
+            type: "chatMessage",
+            fromPlayerId: conn.playerId,
+            message: trimmed,
+            scope: event.scope,
+            timestamp: ts
+          });
+        }
+      }
       return;
     }
 

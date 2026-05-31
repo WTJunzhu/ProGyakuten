@@ -54,7 +54,8 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
   const room = roomManager.get(roomId);
   if (!room) return;
 
-  if (room.status === "lobby" || room.status === "game_over") {
+  if (room.status === "lobby" || room.status === "game_over" ||
+      room.status === "character_selection" || room.status === "game_intro") {
     removePlayerFromLobbyRoom(room, playerId);
 
     if (room.players.length === 0) {
@@ -70,9 +71,12 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
       return;
     }
 
-    if (room.status === "game_over") {
+    if (room.status === "game_over" ||
+        room.status === "character_selection" ||
+        room.status === "game_intro") {
       room.status = "lobby";
       room.game = undefined;
+      room.characterDraft = undefined;
     }
     await persistence.saveRoom(room);
     broadcastRoomSnapshot(room);

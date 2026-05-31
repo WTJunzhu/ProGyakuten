@@ -234,10 +234,15 @@ export function applyPassTurn(
   const announcements: string[] = [];
 
   if (state.drawCardStack > 0) {
-    for (let i = 0; i < state.drawCardStack; i += 1) {
+    applyRuleHooks(state.rules.hooks, (hook) => {
+      hook.beforePenaltyDraw?.({ state, player, count: state.drawCardStack });
+      return undefined;
+    });
+    const count = state.drawCardStack;
+    for (let i = 0; i < count; i += 1) {
       drawOne(state, player);
     }
-    announcements.push(`Player ${player.playerId} draws ${state.drawCardStack} penalty cards.`);
+    announcements.push(`Player ${player.playerId} draws ${count} penalty cards.`);
     state.drawCardStack = 0;
     state.penaltySource = null;
   }

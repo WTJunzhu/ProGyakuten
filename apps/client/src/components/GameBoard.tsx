@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Card, AllowedAction, GamePublicState } from "@pro-gyakuten/protocol";
+import type { Card, AllowedAction, GamePublicState, CharacterPublicInfo } from "@pro-gyakuten/protocol";
 import { isCardPlayableLite, isCardSnatchableLite, matchesSkipConstraintLite } from "@pro-gyakuten/core";
 import { useGameStore } from "../stores/gameStore";
 import { useToastStore } from "../stores/toastStore";
@@ -64,6 +64,71 @@ function getPhaseSubtitle(phase: string, actingPlayerId: string, sourcePlayerId?
   return `${actingPlayerId} 正在判断是否打出刚摸到的牌`;
 }
 
+// ─── CharacterPanel: portrait + hover tooltip + click to activate ───
+function CharacterPanel({
+  character,
+  compact = false,
+  canActivate = false,
+  isTargetable = false,
+  onClick
+}: {
+  character: CharacterPublicInfo;
+  compact?: boolean;
+  canActivate?: boolean;
+  isTargetable?: boolean;
+  onClick?: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const clickable = canActivate || isTargetable;
+  return (
+    <div
+      className={[
+        "char-panel",
+        compact ? "compact" : "",
+        canActivate ? "skill-ready" : "",
+        isTargetable ? "skill-targetable" : "",
+        clickable ? "clickable" : ""
+      ].filter(Boolean).join(" ")}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={clickable ? onClick : undefined}
+    >
+      <div className="char-portrait">立绘</div>
+      <div className="char-name-label">{character.name}</div>
+      {canActivate && <div className="skill-ready-dot" title="技能可发动" />}
+      {hover && (
+        <div className="char-tooltip">
+          <div className="char-tooltip-name">{character.name}</div>
+          <div className="char-tooltip-desc">{character.description}</div>
+          {canActivate && (
+            <div className="char-tooltip-hint">▶ 点击立绘发动技能</div>
+          )}
+          {isTargetable && (
+            <div className="char-tooltip-hint">▶ 点击选为目标</div>
+          )}
+          {character.skills.length > 0 && (
+            <div className="char-tooltip-skills">
+              {character.skills.map((skill) => (
+                <div key={skill.id} className="char-tooltip-skill">
+                  <div className="char-tooltip-skill-header">
+                    <span className="char-tooltip-skill-name">{skill.name}</span>
+                    {skill.isActive && <span className="skill-badge active">主动</span>}
+                    {!skill.isActive && <span className="skill-badge passive">被动</span>}
+                    {skill.maxUsesPerGame !== undefined && (
+                      <span className="skill-badge limited">限{skill.maxUsesPerGame}次</span>
+                    )}
+                  </div>
+                  <div className="char-tooltip-skill-desc">{skill.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const LONG_PRESS_MS = 300;
 const MIN_VISIBLE = 28;
 const MAX_VISIBLE = 92;
@@ -85,6 +150,10 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const logLines = useGameStore((s) => s.logLines);
   const nextSeq = useGameStore((s) => s.nextSeq);
   const reorderHand = useGameStore((s) => s.reorderHand);
+  const characterAssignments = useGameStore((s) => s.characterAssignments);
+  const pendingSkill = useGameStore((s) => s.pendingSkill);
+  const setPendingSkill = useGameStore((s) => s.setPendingSkill);
+  const setPendingWild = useGameStore((s) => s.setPendingWild);
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
@@ -118,6 +187,39 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const isMyTurn = gameState.currentPlayerId === playerId;
   const myTeam = gameState.teams.teamA.includes(playerId) ? "teamA" : "teamB";
   const otherPlayers = gameState.players.filter((p) => p.playerId !== playerId);
+  const myCharacter = characterAssignments[playerId];
+
+  // ─── 技能激活逻辑 ───
+  const canUseSkillNow = isActionAllowed(allowedActions, "use_skill");
+
+  const handleOwnPortraitClick = () => {
+    if (!canUseSkillNow || !myCharacter) return;
+    // 找第一个当前可发动的技能（单技能角色直接激活）
+    const skill = myCharacter.skills.find((s) => s.isActive || s.inputType);
+    if (!skill) return;
+    const inputType = skill.inputType ?? "none";
+
+    if (inputType === "none") {
+      wsSend({ type: "useSkill", skillId: skill.id, payload: {} });
+    } else {
+      setPendingSkill({ skillId: skill.id, inputType });
+    }
+  };
+
+  const handleTargetPortraitClick = (targetPlayerId: string) => {
+    if (!pendingSkill || pendingSkill.inputType !== "target") return;
+    wsSend({ type: "useSkill", skillId: pendingSkill.skillId, payload: { targetPlayerId } });
+    setPendingSkill(null);
+  };
+
+  // 判断一个对手是否是当前技能的有效目标（由 canActivate 在服务端验证，客户端只高亮）
+  const isValidSkillTarget = (targetPlayerId: string): boolean => {
+    if (!pendingSkill || pendingSkill.inputType !== "target") return false;
+    // 只高亮非己方玩家（仅外观提示，服务端做真正校验）
+    const myTeamPlayers =
+      myTeam === "teamA" ? gameState.teams.teamA : gameState.teams.teamB;
+    return !myTeamPlayers.includes(targetPlayerId);
+  };
 
   // ─── Card position calculation with hover expansion ───
   const containerWidth = handContainerRef.current?.clientWidth ?? 800;
@@ -167,6 +269,33 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   const handleCardClick = (card: Card) => {
     if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+
+    // ── 技能选牌模式 ──────────────────────────────────────
+    if (pendingSkill) {
+      if (pendingSkill.inputType === "card") {
+        // 御琴羽：只能选数字牌
+        if (card.kind !== "number") {
+          useToastStore.getState().showToast("请选择一张数字牌", "warning");
+          return;
+        }
+        wsSend({ type: "useSkill", skillId: pendingSkill.skillId, payload: { cardId: card.id } });
+        setPendingSkill(null);
+        return;
+      }
+      if (pendingSkill.inputType === "card_and_color") {
+        // 亚双义：不能选 Wild / +4
+        if (card.kind === "wild" || card.kind === "wild_draw_four") {
+          useToastStore.getState().showToast("Wild 牌和 +4 牌不可变色", "warning");
+          return;
+        }
+        // 打开颜色弹窗，复用 ColorModal 的 skill_recolor 流程
+        setPendingWild(card, null, "skill_recolor");
+        return;
+      }
+      return; // 其他 inputType 在此不处理手牌点击
+    }
+    // ─────────────────────────────────────────────────────
+
     if (pendingWildCard && card.id === pendingWildCard.id) {
       setPendingWild(null, null, null);
       return;
@@ -425,6 +554,14 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
               <div style={{ fontWeight: 700 }}>
                 {p.playerId}{isTeammate ? " (队友)" : ""}
               </div>
+              {characterAssignments[p.playerId] && (
+                <CharacterPanel
+                  character={characterAssignments[p.playerId]}
+                  compact
+                  isTargetable={isValidSkillTarget(p.playerId)}
+                  onClick={() => handleTargetPortraitClick(p.playerId)}
+                />
+              )}
               <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center" }}>
                 {handHtml
                   ? handHtml.map((c) => (
@@ -478,6 +615,13 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       {/* Row 3: Player area */}
       <div className="player-area">
         <div className="toolbar">
+          {myCharacter && (
+            <CharacterPanel
+              character={myCharacter}
+              canActivate={canUseSkillNow && !pendingSkill}
+              onClick={handleOwnPortraitClick}
+            />
+          )}
           <div className="status-badge">
             {phase?.phase === "snatch_window" ? "抢牌判定阶段"
               : phase?.phase === "post_draw_window"

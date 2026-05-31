@@ -79,6 +79,10 @@ export function drawOne(state: GameStateInternal, player: PlayerState): Card {
   if (player.hand.length !== 1) {
     player.missedUnoPending = false;
   }
+  applyRuleHooks(state.rules.hooks, (hook) => {
+    hook.afterCardDrawn?.({ state, player, card });
+    return undefined;
+  });
   return card;
 }
 
@@ -228,4 +232,12 @@ export function applyRuleHooks<T>(hooks: GameRuleHookSet[], resolver: (hook: Gam
     }
   }
   return resolved;
+}
+
+export function applyAfterTurnStart(state: GameStateInternal): void {
+  const player = state.players[state.currentPlayerIndex];
+  applyRuleHooks(state.rules.hooks, (hook) => {
+    hook.afterTurnStart?.({ state, player });
+    return undefined;
+  });
 }

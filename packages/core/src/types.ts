@@ -11,6 +11,11 @@ export interface PlayerState {
   lastSeq: number;
 }
 
+export interface SkillStateEntry {
+  usesRemaining: number;
+  lastUsedTurnId?: number;
+}
+
 export interface GameStateInternal {
   roomId: string;
   gameId: string;
@@ -31,6 +36,8 @@ export interface GameStateInternal {
   };
   wildBridge?: { kind: CardKind; value?: number; color: CardColor };
   rules: GameRules;
+  characterAssignments?: Record<string, string>;
+  skillState?: Record<string, Record<string, SkillStateEntry>>;
 }
 
 export interface ActionResult {

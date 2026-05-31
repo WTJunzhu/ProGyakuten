@@ -49,12 +49,12 @@ export function getLobbyStateEvent(): ServerEvent {
       roomId: room.roomId,
       ownerPlayerId: room.ownerPlayerId,
       playerCount: room.players.length,
-      status: room.status as "lobby" | "in_game"
+      status: (room.status === "lobby" ? "lobby" : "in_game") as "lobby" | "in_game"
     }));
   return { type: "lobbyState", rooms: roomInfos };
 }
 
-export function buildStateEvent(room: RoomState, playerId: string, message?: string): ServerEvent {
+export function buildStateEvent(room: RoomState, playerId: string, message?: string, presentationHint?: string): ServerEvent {
   const hand = getPlayerHand(room.game!, playerId);
   const allowedActions = getAllowedActions(room, playerId);
   if (message === "已恢复连接") {
@@ -72,15 +72,16 @@ export function buildStateEvent(room: RoomState, playerId: string, message?: str
     playableDrawnCardId:
       room.drawnCardWindow?.playerId === playerId && room.drawnCardWindow.playable
         ? room.drawnCardWindow.cardId
-        : undefined
+        : undefined,
+    presentationHint
   };
 }
 
-export function broadcastGameState(room: RoomState, message?: string): void {
+export function broadcastGameState(room: RoomState, message?: string, presentationHint?: string): void {
   for (const playerId of room.players) {
     const conn = playersById.get(playerId);
     if (!conn || conn.roomId !== room.roomId) continue;
-    send(conn.ws, buildStateEvent(room, playerId, message));
+    send(conn.ws, buildStateEvent(room, playerId, message, presentationHint));
   }
 }
 
