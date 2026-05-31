@@ -89,6 +89,7 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
     broadcastGameState(room, `Player ${playerId} left the room.`);
 
     const connectedPlayers = room.players.filter((pid) => {
+      if (room.aiPlayers?.includes(pid)) return true;
       const c = playersById.get(pid);
       return c && !c.disconnectedAt;
     });

@@ -10,20 +10,18 @@ export function Lobby({ wsSend }: { wsSend: (e: unknown) => void }) {
 
   const createRoom = () => {
     const roomId = newRoomId.trim();
-    if (!roomId) {
-      toast("请输入房间名", "warning");
-      return;
-    }
+    if (!roomId) { toast("请输入房间名", "warning"); return; }
     wsSend({ type: "createRoom", roomId, playerId: "" });
     setNewRoomId("");
   };
 
   const joinRoom = (roomId: string, status: string) => {
-    if (status === "in_game") {
-      toast("该房间已经开局", "warning");
-      return;
-    }
+    if (status === "in_game") { toast("该房间已经开局，可以观战", "info"); return; }
     wsSend({ type: "joinRoom", roomId, playerId: "" });
+  };
+
+  const spectateRoom = (roomId: string) => {
+    wsSend({ type: "joinRoomAsSpectator", roomId });
   };
 
   const backToMenu = () => {
@@ -49,24 +47,38 @@ export function Lobby({ wsSend }: { wsSend: (e: unknown) => void }) {
               当前没有房间，创建一个吧
             </div>
           ) : (
-            rooms.map((room) => (
-              <div
-                key={room.roomId}
-                className="room-item"
-                onClick={() => joinRoom(room.roomId, room.status)}
-              >
-                <div>
-                  <div style={{ fontWeight: 700 }}>{room.roomId}</div>
-                  <div className="hint">房主: {room.ownerPlayerId}</div>
+            rooms.map((room) => {
+              const inGame = room.status === "in_game";
+              return (
+                <div key={room.roomId} className="room-item">
+                  <div style={{ flex: 1, cursor: inGame ? "default" : "pointer" }}
+                       onClick={() => !inGame && joinRoom(room.roomId, room.status)}>
+                    <div style={{ fontWeight: 700 }}>{room.roomId}</div>
+                    <div className="hint">房主: {room.ownerPlayerId}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {inGame && room.spectatorCount !== undefined && room.spectatorCount > 0 && (
+                      <span className="hint" style={{ fontSize: 12 }}>👁 {room.spectatorCount}</span>
+                    )}
+                    <span className={`room-item-status ${room.status}`}>
+                      {inGame ? "游戏中" : "等待中"}
+                    </span>
+                    <span>{room.playerCount} / 6</span>
+                    {inGame ? (
+                      <button
+                        className="spectate-btn"
+                        onClick={(e) => { e.stopPropagation(); spectateRoom(room.roomId); }}
+                      >观战</button>
+                    ) : (
+                      <button
+                        style={{ padding: "3px 10px", fontSize: 12 }}
+                        onClick={() => joinRoom(room.roomId, room.status)}
+                      >加入</button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span className={`room-item-status ${room.status}`}>
-                    {room.status === "lobby" ? "等待中" : "游戏中"}
-                  </span>
-                  <span>{room.playerCount} / 6</span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

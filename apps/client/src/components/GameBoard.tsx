@@ -154,6 +154,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const pendingSkill = useGameStore((s) => s.pendingSkill);
   const setPendingSkill = useGameStore((s) => s.setPendingSkill);
   const setPendingWild = useGameStore((s) => s.setPendingWild);
+  const isSpectating = useGameStore((s) => s.isSpectating);
+  const spectators = useGameStore((s) => s.spectators);
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
@@ -612,7 +614,24 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
         </div>
       </div>
 
-      {/* Row 3: Player area */}
+      {/* Row 3: Player area or Spectator controls */}
+      {isSpectating ? (
+        <div className="player-area spectator-area">
+          <div className="spectator-toolbar">
+            <div className="spectator-badge">
+              👁 观战中
+              {spectators.length > 0 && (
+                <span className="spectator-count">（{spectators.length} 人观战）</span>
+              )}
+            </div>
+            <button onClick={() => {
+              wsSend({ type: "leaveSpectator" });
+              useGameStore.getState().resetGame();
+              useGameStore.getState().setView("lobby");
+            }}>离开观战</button>
+          </div>
+        </div>
+      ) : (
       <div className="player-area">
         <div className="toolbar">
           {myCharacter && (
@@ -721,6 +740,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           </div>
         </div>
       </div>
+      )} {/* end of isSpectating ? ... : player-area */}
 
       {/* Side panel: log */}
       <div className={`side-panel panel${logCollapsed ? " collapsed" : ""}`}>

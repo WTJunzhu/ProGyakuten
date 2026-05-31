@@ -33,7 +33,9 @@ export class RoomManager {
       ownerPlayerId: playerId,
       status: "lobby",
       teams: { teamA: [playerId], teamB: [] },
-      phaseToken: 0
+      phaseToken: 0,
+      aiPlayers: [],
+      spectators: []
     };
     this.rooms.set(roomId, room);
     return room;

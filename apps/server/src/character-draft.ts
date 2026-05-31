@@ -19,6 +19,7 @@ import { broadcastRoomSnapshot } from "./room.js";
 import { getAllowedActions } from "./actions.js";
 import { setPhase } from "./phase.js";
 import { persistence } from "./db.js";
+import { triggerAiIfNeeded } from "./ai/index.js";
 
 function shuffleArray<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -75,14 +76,31 @@ export function startCharacterDraft(room: RoomState): void {
   const token = room.phaseToken;
 
   // Send each player their private set of 3 options
+  // AI players auto-select immediately (random)
   for (const playerId of room.players) {
     const conn = playersById.get(playerId);
-    if (!conn) continue;
-    send(conn.ws, {
-      type: "characterDraft",
-      characters: options[playerId] ?? [],
-      timeoutMs: CHARACTER_DRAFT_TIMEOUT_MS
-    });
+    if (room.aiPlayers.includes(playerId)) {
+      // AI: pick random option right away
+      const choices = options[playerId] ?? [];
+      if (choices.length > 0) {
+        room.characterDraft!.selections[playerId] =
+          choices[Math.floor(Math.random() * choices.length)].id;
+      }
+    } else if (conn) {
+      send(conn.ws, {
+        type: "characterDraft",
+        characters: options[playerId] ?? [],
+        timeoutMs: CHARACTER_DRAFT_TIMEOUT_MS
+      });
+    }
+  }
+
+  // If all players (including AI) already selected, complete immediately
+  const allDone = room.players.every(pid => !!room.characterDraft!.selections[pid]);
+  if (allDone) {
+    room.phaseToken += 1; // Invalidate the timeout below
+    completeDraft(room);
+    return;
   }
 
   broadcastRoomSnapshot(room);
@@ -229,4 +247,7 @@ async function launchGame(room: RoomState): Promise<void> {
   await persistence.saveRoom(room);
   await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
   broadcastToLobby(getLobbyStateEvent());
+
+  // 如果首个出牌者是 AI，立即触发
+  triggerAiIfNeeded(room);
 }

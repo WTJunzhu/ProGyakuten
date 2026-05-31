@@ -15,6 +15,7 @@ import { persistence, db } from "./db.js";
 import { register, login, verifyToken, setTokenCharacter } from "./auth.js";
 import { listCharacters, createCharacter } from "./character.js";
 import { startCharacterDraft, handleSelectGameCharacter } from "./character-draft.js";
+import { handleJoinRoomAsSpectator, handleLeaveSpectator } from "./spectator.js";
 
 const MAX_CHARACTERS = 3;
 
@@ -25,6 +26,8 @@ async function restoreRooms(): Promise<void> {
   const rooms = await persistence.loadAllRooms();
   const restoredRoomIds: string[] = [];
   for (const room of rooms) {
+    room.aiPlayers = room.aiPlayers ?? [];   // 兼容旧快照
+    room.spectators = room.spectators ?? []; // 兼容旧快照
     if (room.status === "character_selection" || room.status === "game_intro") {
       room.status = "lobby";
       room.game = undefined;
@@ -250,6 +253,20 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if (event.type === "joinRoomAsSpectator") {
+      const targetRoom = roomManager.get(event.roomId);
+      if (!targetRoom) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间不存在" });
+        return;
+      }
+      const result = handleJoinRoomAsSpectator(conn, targetRoom);
+      if (!result.ok) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: result.error ?? "观战失败" });
+      }
+      broadcastToLobby(getLobbyStateEvent());
+      return;
+    }
+
     // --- Room-level events (require active room) ---
     const roomId = conn.roomId;
     if (!roomId) {
@@ -261,6 +278,40 @@ wss.on("connection", (ws) => {
     const room = roomManager.get(roomId);
     if (!room) {
       send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room not found" });
+      return;
+    }
+
+    if (event.type === "addAiPlayer") {      if (room.ownerPlayerId !== conn.playerId) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "只有房主可以添加 AI" });
+        return;
+      }
+      if (room.status !== "lobby") {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "只能在大厅状态添加 AI" });
+        return;
+      }
+      if (room.players.length >= 6) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已满（最多6人）" });
+        return;
+      }
+      const aiCount = room.aiPlayers.length;
+      const aiPlayerId = `AI_${aiCount + 1}`;
+      room.aiPlayers.push(aiPlayerId);
+      roomManager.addPlayer(room, aiPlayerId);
+      await persistence.saveRoom(room);
+      broadcastRoomSnapshot(room);
+      broadcastToLobby(getLobbyStateEvent());
+      return;
+    }
+
+    if (event.type === "removeAiPlayer") {
+      if (room.ownerPlayerId !== conn.playerId) return;
+      if (room.status !== "lobby") return;
+      if (!room.aiPlayers.includes(event.playerId)) return;
+      room.aiPlayers = room.aiPlayers.filter(id => id !== event.playerId);
+      roomManager.removePlayer(room, event.playerId);
+      await persistence.saveRoom(room);
+      broadcastRoomSnapshot(room);
+      broadcastToLobby(getLobbyStateEvent());
       return;
     }
 
@@ -314,6 +365,14 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if (event.type === "leaveSpectator") {
+      if (room.spectators?.includes(conn.playerId ?? "")) {
+        handleLeaveSpectator(conn, room);
+        send(ws, getLobbyStateEvent());
+      }
+      return;
+    }
+
     if (event.type === "chat") {
       if (!conn.playerId) return;
       const trimmed = event.message.trim().slice(0, 200);
@@ -323,11 +382,15 @@ wss.on("connection", (ws) => {
       let recipients: string[];
 
       if (event.scope === "team") {
-        // 使用 room.teams 确定队伍（游戏开始前也可用）
-        const team = room.teams.teamA.includes(conn.playerId) ? "teamA" : "teamB";
-        recipients = room.teams[team];
+        const isPlayer = room.players.includes(conn.playerId);
+        if (!isPlayer) return; // 观战者不能发队伍频道
+        const team = (room.game?.teams ?? room.teams).teamA.includes(conn.playerId) ? "teamA" : "teamB";
+        recipients = (room.game?.teams ?? room.teams)[team];
+      } else if (event.scope === "spectator") {
+        recipients = room.spectators ?? [];
       } else {
-        recipients = room.players;
+        // "room" scope：玩家 + 观战者
+        recipients = [...room.players, ...(room.spectators ?? [])];
       }
 
       for (const pid of recipients) {

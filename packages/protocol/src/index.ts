@@ -8,6 +8,10 @@ export interface Card {
   value?: number;
 }
 
+export interface SpectatorInfo {
+  playerId: string;
+}
+
 export interface PlayerPublicState {
   playerId: string;
   seat: number;
@@ -188,12 +192,30 @@ export interface UseSkillEvent {
   payload?: unknown;
 }
 
-export type ChatScope = "room" | "team";
+export type ChatScope = "room" | "team" | "spectator";
 
 export interface ChatEvent {
   type: "chat";
   message: string;
   scope: ChatScope;
+}
+
+export interface JoinRoomAsSpectatorEvent {
+  type: "joinRoomAsSpectator";
+  roomId: string;
+}
+
+export interface LeaveSpectatorEvent {
+  type: "leaveSpectator";
+}
+
+export interface AddAiPlayerEvent {
+  type: "addAiPlayer";
+}
+
+export interface RemoveAiPlayerEvent {
+  type: "removeAiPlayer";
+  playerId: string;
 }
 
 export type ClientEvent =
@@ -218,13 +240,18 @@ export type ClientEvent =
   | SelectCharacterEvent
   | SelectGameCharacterEvent
   | UseSkillEvent
-  | ChatEvent;
+  | ChatEvent
+  | AddAiPlayerEvent
+  | RemoveAiPlayerEvent
+  | JoinRoomAsSpectatorEvent
+  | LeaveSpectatorEvent;
 
 export interface RoomSnapshotEvent {
   type: "roomSnapshot";
   roomId: string;
   players: PlayerPublicState[];
   status: "lobby" | "character_selection" | "in_game" | "game_over" | "finished";
+  spectators?: SpectatorInfo[];
 }
 
 export interface GameViewEventBase {
@@ -270,6 +297,7 @@ export interface LobbyRoomInfo {
   ownerPlayerId: string;
   playerCount: number;
   status: "lobby" | "in_game";
+  spectatorCount?: number;
 }
 
 export interface LobbyStateEvent {
@@ -347,6 +375,25 @@ export interface ChatMessageEvent {
   timestamp: number;
 }
 
+export interface SpectatorJoinedEvent {
+  type: "spectatorJoined";
+  playerId: string;
+}
+
+export interface SpectatorLeftEvent {
+  type: "spectatorLeft";
+  playerId: string;
+}
+
+export interface SpectatorGameSnapshotEvent {
+  type: "spectatorGameSnapshot";
+  state: GamePublicState;
+  phase: TurnPhaseInfo;
+  spectators: SpectatorInfo[];
+  characterAssignments?: Record<string, CharacterPublicInfo>;
+  message?: string;
+}
+
 export type ServerEvent =
   | RoomSnapshotEvent
   | GameStartEvent
@@ -360,4 +407,7 @@ export type ServerEvent =
   | CharacterSelectedEvent
   | CharacterDraftEvent
   | GameCharacterRevealEvent
-  | ChatMessageEvent;
+  | ChatMessageEvent
+  | SpectatorJoinedEvent
+  | SpectatorLeftEvent
+  | SpectatorGameSnapshotEvent;

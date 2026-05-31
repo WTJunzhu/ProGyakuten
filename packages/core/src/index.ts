@@ -30,6 +30,7 @@ export {
   alignTurnToSkipConstraint,
   applyAfterTurnStart,
   getPlayerHand,
+  matchesSkipConstraint,
   replenishPlayerHand,
   toPublicState
 } from "./engine/state";

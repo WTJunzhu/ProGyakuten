@@ -31,8 +31,10 @@ export function roomSnapshot(room: RoomState): ServerEvent {
       playerId,
       seat,
       handCount: room.game?.players[seat]?.hand.length ?? 0,
-      connected: !!playersById.get(playerId) && !playersById.get(playerId)?.disconnectedAt
-    }))
+      connected: room.aiPlayers?.includes(playerId) ||
+        (!!playersById.get(playerId) && !playersById.get(playerId)?.disconnectedAt)
+    })),
+    spectators: (room.spectators ?? []).map(id => ({ playerId: id }))
   };
 }
 
@@ -49,7 +51,8 @@ export function getLobbyStateEvent(): ServerEvent {
       roomId: room.roomId,
       ownerPlayerId: room.ownerPlayerId,
       playerCount: room.players.length,
-      status: (room.status === "lobby" ? "lobby" : "in_game") as "lobby" | "in_game"
+      status: (room.status === "lobby" ? "lobby" : "in_game") as "lobby" | "in_game",
+      spectatorCount: room.spectators?.length ?? 0
     }));
   return { type: "lobbyState", rooms: roomInfos };
 }
@@ -83,6 +86,23 @@ export function broadcastGameState(room: RoomState, message?: string, presentati
     if (!conn || conn.roomId !== room.roomId) continue;
     send(conn.ws, buildStateEvent(room, playerId, message, presentationHint));
   }
+
+  // 向观战者广播（手牌为空）
+  for (const spectatorId of room.spectators ?? []) {
+    const conn = playersById.get(spectatorId);
+    if (!conn || conn.roomId !== room.roomId) continue;
+    send(conn.ws, {
+      type: "statePatch",
+      state: toPublicState(room.game!),
+      phase: room.phase!,
+      hand: [],
+      teammateHands: {},
+      message,
+      allowedActions: [],
+      lastSeq: undefined,
+      presentationHint
+    });
+  }
 }
 
 export function finalizeAction(room: RoomState, result: ActionResult, baseMessage: string): string | null {
@@ -93,7 +113,8 @@ export function finalizeAction(room: RoomState, result: ActionResult, baseMessag
     room.phase = undefined;
     room.drawnCardWindow = undefined;
     room.phaseToken += 1;
-    for (const playerId of room.players) {
+    const everyone = [...room.players, ...(room.spectators ?? [])];
+    for (const playerId of everyone) {
       const conn = playersById.get(playerId);
       if (conn && conn.roomId === room.roomId) {
         send(conn.ws, { type: "gameOver", state: finalState });

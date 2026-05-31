@@ -9,6 +9,7 @@ import {
   removePlayerFromLobbyRoom,
   broadcastRoomSnapshot
 } from "./room.js";
+import { handleLeaveSpectator } from "./spectator.js";
 
 export function markDisconnected(playerId: string): void {
   const conn = playersById.get(playerId);
@@ -16,9 +17,17 @@ export function markDisconnected(playerId: string): void {
   conn.disconnectedAt = Date.now();
   if (conn.roomId) {
     const room = roomManager.get(conn.roomId);
-    if (room?.status === "in_game") {
-      setGamePlayerConnected(room, playerId, false);
-      broadcastGameState(room, `Player ${playerId} disconnected.`);
+    if (room) {
+      // 观战者断线：直接清理，无宽限期
+      if (room.spectators?.includes(playerId)) {
+        handleLeaveSpectator(conn, room);
+        playersById.delete(playerId);
+        return;
+      }
+      if (room.status === "in_game") {
+        setGamePlayerConnected(room, playerId, false);
+        broadcastGameState(room, `Player ${playerId} disconnected.`);
+      }
     }
   }
 

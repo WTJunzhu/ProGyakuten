@@ -36,6 +36,10 @@ export interface RoomState {
     turnId: number;
   };
   characterDraft?: CharacterDraftState;
+  /** AI 控制的玩家 ID 列表 */
+  aiPlayers: string[];
+  /** 正在观战的玩家 ID 列表（不在 players 里） */
+  spectators: string[];
 }
 
 export const PORT = Number(process.env.PORT ?? "3001");

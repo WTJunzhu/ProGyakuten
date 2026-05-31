@@ -9,7 +9,8 @@ import type {
   CardColor,
   CharacterPublicInfo,
   SkillInputType,
-  ChatScope
+  ChatScope,
+  SpectatorInfo
 } from "@pro-gyakuten/protocol";
 import { useToastStore } from "./toastStore";
 import { triggerPresentation } from "../presentation/store";
@@ -109,6 +110,10 @@ interface GameState {
 
   // Team chat
   chatMessages: { fromPlayerId: string; message: string; scope: ChatScope; timestamp: number }[];
+
+  // Spectating
+  isSpectating: boolean;
+  spectators: SpectatorInfo[];
 
   nextSeq: () => number;
   reorderHand: (fromIndex: number, toIndex: number) => void;
@@ -252,6 +257,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   characterAssignments: {},
 
   chatMessages: [],
+
+  isSpectating: false,
+  spectators: [],
 
   nextSeq: () => {
     const next = get().lastSeq + 1;
@@ -476,6 +484,34 @@ export const useGameStore = create<GameState>((set, get) => ({
           ].slice(-200)
         }));
         break;
+
+      case "spectatorGameSnapshot":
+        set({
+          gameState: event.state,
+          phase: event.phase,
+          hand: [],
+          teammateHands: {},
+          allowedActions: [],
+          spectators: event.spectators,
+          characterAssignments: event.characterAssignments ?? {},
+          isSpectating: true,
+          view: "game"
+        });
+        break;
+
+      case "spectatorJoined":
+        set((s) => ({
+          spectators: s.spectators.some(sp => sp.playerId === event.playerId)
+            ? s.spectators
+            : [...s.spectators, { playerId: event.playerId }]
+        }));
+        break;
+
+      case "spectatorLeft":
+        set((s) => ({
+          spectators: s.spectators.filter(sp => sp.playerId !== event.playerId)
+        }));
+        break;
     }
   },
 
@@ -495,8 +531,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingWildAction: null,
       pendingSkill: null,
       characterDraftOptions: [],
-      characterAssignments: {}
-      // 注意：chatMessages 不在此清空——游戏重开时聊天记录保留
+      characterAssignments: {},
+      chatMessages: [],
+      isSpectating: false,
+      spectators: []
     });
     get().clearSession();
   }

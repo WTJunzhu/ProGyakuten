@@ -15,6 +15,7 @@ import {
   POST_DRAW_WINDOW_TIMEOUT_MS,
   SNATCH_AUTO_SKIP_MS
 } from "./types.js";
+import { triggerAiIfNeeded } from "./ai/index.js";
 
 function currentPlayerId(room: RoomState): string {
   return room.game!.players[room.game!.currentPlayerIndex].playerId;
@@ -43,6 +44,7 @@ export function startMainTurn(room: RoomState, message?: string): void {
   setPhase(room, "turn_main", currentPlayerId(room), TURN_TIMEOUT_MS);
   broadcastGameState(room, message);
   schedulePhaseTimeout(room.roomId, room.phaseToken);
+  triggerAiIfNeeded(room);
 }
 
 export function startSnatchWindow(room: RoomState, sourcePlayerId: string, message?: string): void {
@@ -55,6 +57,7 @@ export function startSnatchWindow(room: RoomState, sourcePlayerId: string, messa
   broadcastGameState(room, message);
   schedulePhaseTimeout(room.roomId, room.phaseToken);
   scheduleSnatchAutoSkip(room.roomId, room.phaseToken);
+  triggerAiIfNeeded(room);
 }
 
 export function startPostDrawWindow(
@@ -74,6 +77,7 @@ export function startPostDrawWindow(
   setPhase(room, "post_draw_window", playerId, POST_DRAW_WINDOW_TIMEOUT_MS, { drawnCardPlayable: playable });
   broadcastGameState(room, message);
   schedulePhaseTimeout(room.roomId, room.phaseToken);
+  triggerAiIfNeeded(room);
 }
 
 export function maybeFinishSnatchWindowEarly(room: RoomState, message?: string): boolean {
