@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build -w @pro-gyakuten/protocol && npm run build -w @pro-gyakuten/core && npm run build -w @pro-gyakuten/client && cp -r apps/client/dist dist",
+  "buildCommand": "npm run build -w @pro-gyakuten/protocol && npm run build -w @pro-gyakuten/core && npm run build -w @pro-gyakuten/client",
   "outputDirectory": "dist",
   "installCommand": "npm install"
 }
