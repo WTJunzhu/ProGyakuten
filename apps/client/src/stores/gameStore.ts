@@ -471,7 +471,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         set((s) => ({
           chatMessages: [
             ...s.chatMessages,
-            { fromPlayerId: event.fromPlayerId, message: event.message, timestamp: event.timestamp }
+            { fromPlayerId: event.fromPlayerId, message: event.message, scope: "team" as ChatScope, timestamp: event.timestamp }
           ].slice(-200)
         }));
         break;

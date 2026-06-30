@@ -375,6 +375,13 @@ export interface ChatMessageEvent {
   timestamp: number;
 }
 
+export interface TeamChatMessageEvent {
+  type: "teamChatMessage";
+  fromPlayerId: string;
+  message: string;
+  timestamp: number;
+}
+
 export interface SpectatorJoinedEvent {
   type: "spectatorJoined";
   playerId: string;
@@ -408,6 +415,7 @@ export type ServerEvent =
   | CharacterDraftEvent
   | GameCharacterRevealEvent
   | ChatMessageEvent
+  | TeamChatMessageEvent
   | SpectatorJoinedEvent
   | SpectatorLeftEvent
   | SpectatorGameSnapshotEvent;

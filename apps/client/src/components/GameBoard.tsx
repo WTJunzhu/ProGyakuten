@@ -153,7 +153,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const characterAssignments = useGameStore((s) => s.characterAssignments);
   const pendingSkill = useGameStore((s) => s.pendingSkill);
   const setPendingSkill = useGameStore((s) => s.setPendingSkill);
-  const setPendingWild = useGameStore((s) => s.setPendingWild);
   const isSpectating = useGameStore((s) => s.isSpectating);
   const spectators = useGameStore((s) => s.spectators);
 
