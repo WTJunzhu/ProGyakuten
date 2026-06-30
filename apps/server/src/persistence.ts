@@ -119,7 +119,9 @@ export class SqlitePersistence implements PersistenceLayer {
       status: r.status as RoomState["status"],
       players: playersResult.rows.map((p: Record<string, unknown>) => (p as unknown as { player_id: string }).player_id),
       teams,
-      phaseToken: 0
+      phaseToken: 0,
+      aiPlayers: [],
+      spectators: []
     };
   }
 

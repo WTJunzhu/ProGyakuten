@@ -188,6 +188,7 @@ export interface SelectGameCharacterEvent {
 
 export interface UseSkillEvent {
   type: "useSkill";
+  playerId: string;
   skillId: string;
   payload?: unknown;
 }
@@ -218,6 +219,11 @@ export interface RemoveAiPlayerEvent {
   playerId: string;
 }
 
+export interface TeamChatEvent {
+  type: "teamChat";
+  message: string;
+}
+
 export type ClientEvent =
   | CreateRoomEvent
   | JoinRoomEvent
@@ -244,13 +250,14 @@ export type ClientEvent =
   | AddAiPlayerEvent
   | RemoveAiPlayerEvent
   | JoinRoomAsSpectatorEvent
-  | LeaveSpectatorEvent;
+  | LeaveSpectatorEvent
+  | TeamChatEvent;
 
 export interface RoomSnapshotEvent {
   type: "roomSnapshot";
   roomId: string;
   players: PlayerPublicState[];
-  status: "lobby" | "character_selection" | "in_game" | "game_over" | "finished";
+  status: "lobby" | "character_selection" | "game_intro" | "in_game" | "game_over" | "finished";
   spectators?: SpectatorInfo[];
 }
 

@@ -11,6 +11,8 @@ function makeRoom(overrides: Partial<RoomState> = {}): RoomState {
     status: "lobby",
     teams: { teamA: ["alice"], teamB: ["bob"] },
     phaseToken: 0,
+    aiPlayers: [],
+    spectators: [],
     ...overrides
   };
 }
