@@ -1,5 +1,5 @@
-import { applyRuleHooks } from "../../engine/state";
-import type { PlayedCardEffectContext } from "./shared";
+import { applyRuleHooks } from "../../engine/state.js";
+import type { PlayedCardEffectContext } from "./shared.js";
 
 export function applySkipEffect({ state, player, card, previousCard }: PlayedCardEffectContext): void {
   if (!previousCard) return;

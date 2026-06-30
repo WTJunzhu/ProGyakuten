@@ -1,5 +1,5 @@
 import type { Card } from "@pro-gyakuten/protocol";
-import type { GameStateInternal, PlayerState } from "../types";
+import type { GameStateInternal, PlayerState } from "../types.js";
 
 export interface PhaseDurations {
   turnMainMs: number;

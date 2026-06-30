@@ -1,6 +1,6 @@
-import type { CharacterDefinition } from "../types";
-import type { GameStateInternal } from "../../types";
-import { drawOne, ensureDrawPile } from "../../engine/state";
+import type { CharacterDefinition } from "../types.js";
+import type { GameStateInternal } from "../../types.js";
+import { drawOne, ensureDrawPile } from "../../engine/state.js";
 
 // ──────────────────────────────────────────────────────────────────
 // 成步堂龙之介

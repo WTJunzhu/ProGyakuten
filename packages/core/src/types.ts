@@ -1,5 +1,5 @@
 import type { Card, CardColor, CardKind } from "@pro-gyakuten/protocol";
-import type { GameRules } from "./modifiers/types";
+import type { GameRules } from "./modifiers/types.js";
 
 export interface PlayerState {
   playerId: string;

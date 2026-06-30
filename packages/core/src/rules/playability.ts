@@ -1,6 +1,6 @@
 import type { Card, CardKind, GamePublicState } from "@pro-gyakuten/protocol";
-import { applyRuleHooks, effectiveTopCard, matchesSkipConstraint } from "../engine/state";
-import { COLORS, type GameStateInternal } from "../types";
+import { applyRuleHooks, effectiveTopCard, matchesSkipConstraint } from "../engine/state.js";
+import { COLORS, type GameStateInternal } from "../types.js";
 
 function getDefaultPlayableResult(state: GameStateInternal, card: Card, allowWildSingle = true): boolean {
   const top = state.discardPile[state.discardPile.length - 1];

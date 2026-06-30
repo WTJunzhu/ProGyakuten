@@ -1,4 +1,4 @@
-import type { PlayedCardEffectContext } from "./shared";
+import type { PlayedCardEffectContext } from "./shared.js";
 
 export function applyWildDrawFourEffect({ state }: PlayedCardEffectContext): void {
   state.drawCardStack += 4;

@@ -10,10 +10,10 @@ import {
   effectiveTopCard,
   validateCommon,
   validatePlayerSeq
-} from "./engine/state";
-import { playedCardEffects } from "./rules/cards/registry";
-import { isCardPlayable, isCardSnatchable, isComboPlayable, isExactSnatchMatch } from "./rules/playability";
-import type { ActionResult, GameStateInternal } from "./types";
+} from "./engine/state.js";
+import { playedCardEffects } from "./rules/cards/registry.js";
+import { isCardPlayable, isCardSnatchable, isComboPlayable, isExactSnatchMatch } from "./rules/playability.js";
+import type { ActionResult, GameStateInternal } from "./types.js";
 
 export function applyPlayCard(
   state: GameStateInternal,

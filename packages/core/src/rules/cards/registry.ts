@@ -1,11 +1,11 @@
 import type { CardKind } from "@pro-gyakuten/protocol";
-import { applyDrawTwoEffect } from "./drawTwo";
-import { applyNumberEffect } from "./number";
-import { applyReverseEffect } from "./reverse";
-import { applySkipEffect } from "./skip";
-import type { PlayedCardEffectContext } from "./shared";
-import { applyWildEffect } from "./wild";
-import { applyWildDrawFourEffect } from "./wildDrawFour";
+import { applyDrawTwoEffect } from "./drawTwo.js";
+import { applyNumberEffect } from "./number.js";
+import { applyReverseEffect } from "./reverse.js";
+import { applySkipEffect } from "./skip.js";
+import type { PlayedCardEffectContext } from "./shared.js";
+import { applyWildEffect } from "./wild.js";
+import { applyWildDrawFourEffect } from "./wildDrawFour.js";
 
 export type PlayedCardEffect = (context: PlayedCardEffectContext) => void;
 

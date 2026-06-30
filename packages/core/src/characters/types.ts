@@ -1,5 +1,5 @@
-import type { GameRuleHookSet } from "../modifiers/types";
-import type { ActionResult, GameStateInternal, SkillStateEntry } from "../types";
+import type { GameRuleHookSet } from "../modifiers/types.js";
+import type { ActionResult, GameStateInternal, SkillStateEntry } from "../types.js";
 
 export type SkillInputType = "none" | "target" | "card" | "card_and_color";
 

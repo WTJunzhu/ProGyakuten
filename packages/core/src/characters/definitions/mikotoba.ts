@@ -1,5 +1,5 @@
-import type { CharacterDefinition } from "../types";
-import type { GameStateInternal } from "../../types";
+import type { CharacterDefinition } from "../types.js";
+import type { GameStateInternal } from "../../types.js";
 
 // ──────────────────────────────────────────────────────────────────
 // 御琴羽寿沙都

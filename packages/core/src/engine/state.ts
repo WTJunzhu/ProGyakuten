@@ -1,6 +1,6 @@
 import type { Card, CardColor, GamePublicState, PlayerPublicState } from "@pro-gyakuten/protocol";
-import type { GameRuleHookSet } from "../modifiers/types";
-import { COLORS, type ActionResult, type GameStateInternal, type PlayerState } from "../types";
+import type { GameRuleHookSet } from "../modifiers/types.js";
+import { COLORS, type ActionResult, type GameStateInternal, type PlayerState } from "../types.js";
 
 function randomId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;

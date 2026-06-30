@@ -1,4 +1,4 @@
-export type { ActionResult, GameStateInternal, PlayerState, SkillStateEntry } from "./types";
+export type { ActionResult, GameStateInternal, PlayerState, SkillStateEntry } from "./types.js";
 export type {
   CardRuleContext,
   CreateGameRulesOptions,
@@ -10,10 +10,10 @@ export type {
   SkipConstraintContext,
   TurnStartContext,
   UnoPenaltyContext
-} from "./modifiers/types";
+} from "./modifiers/types.js";
 
-export { createDeck, createGame } from "./setup";
-export { createGameRules, defaultRuleConfig, withRuleOverrides } from "./modifiers/defaults";
+export { createDeck, createGame } from "./setup.js";
+export { createGameRules, defaultRuleConfig, withRuleOverrides } from "./modifiers/defaults.js";
 
 export {
   applyCallUno,
@@ -24,7 +24,7 @@ export {
   applyPassTurn,
   applyPlayCard,
   applySnatchCard
-} from "./actions";
+} from "./actions.js";
 
 export {
   alignTurnToSkipConstraint,
@@ -33,7 +33,7 @@ export {
   matchesSkipConstraint,
   replenishPlayerHand,
   toPublicState
-} from "./engine/state";
+} from "./engine/state.js";
 
 export {
   hasWildComboSnatchOption,
@@ -44,8 +44,8 @@ export {
   isComboPlayable,
   isExactSnatchMatch,
   matchesSkipConstraintLite
-} from "./rules/playability";
+} from "./rules/playability.js";
 
-export type { CharacterDefinition, CharacterPublicInfo, SkillDefinition, SkillPublicInfo, SkillInputType } from "./characters/types";
-export { characterRegistry, registerCharacter, getCharacter, getAllCharacters } from "./characters/registry";
-export { applyCharacterSkills, canUseSkill, consumeSkillUse } from "./characters/apply";
+export type { CharacterDefinition, CharacterPublicInfo, SkillDefinition, SkillPublicInfo, SkillInputType } from "./characters/types.js";
+export { characterRegistry, registerCharacter, getCharacter, getAllCharacters } from "./characters/registry.js";
+export { applyCharacterSkills, canUseSkill, consumeSkillUse } from "./characters/apply.js";

@@ -1,8 +1,8 @@
 import type { Card } from "@pro-gyakuten/protocol";
-import { shuffle } from "./engine/state";
-import { createGameRules } from "./modifiers/defaults";
-import type { CreateGameRulesOptions, GameRules } from "./modifiers/types";
-import { COLORS, type GameStateInternal, type PlayerState } from "./types";
+import { shuffle } from "./engine/state.js";
+import { createGameRules } from "./modifiers/defaults.js";
+import type { CreateGameRulesOptions, GameRules } from "./modifiers/types.js";
+import { COLORS, type GameStateInternal, type PlayerState } from "./types.js";
 
 function randomId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;

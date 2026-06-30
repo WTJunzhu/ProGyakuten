@@ -1,4 +1,4 @@
-import type { CharacterDefinition } from "./types";
+import type { CharacterDefinition } from "./types.js";
 
 export const characterRegistry = new Map<string, CharacterDefinition>();
 
@@ -16,11 +16,11 @@ export function getAllCharacters(): CharacterDefinition[] {
 
 // ── 内置角色 ── 每加一个角色在此处追加两行 ──────────────────────
 
-import { naruhodou } from "./definitions/naruhodou";
+import { naruhodou } from "./definitions/naruhodou.js";
 registerCharacter(naruhodou);
 
-import { mikotoba } from "./definitions/mikotoba";
+import { mikotoba } from "./definitions/mikotoba.js";
 registerCharacter(mikotoba);
 
-import { asougi } from "./definitions/asougi";
+import { asougi } from "./definitions/asougi.js";
 registerCharacter(asougi);

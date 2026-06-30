@@ -1,6 +1,6 @@
-import type { GameRuleHookSet } from "../modifiers/types";
-import type { GameStateInternal } from "../types";
-import { characterRegistry } from "./registry";
+import type { GameRuleHookSet } from "../modifiers/types.js";
+import type { GameStateInternal } from "../types.js";
+import { characterRegistry } from "./registry.js";
 
 export function applyCharacterSkills(
   state: GameStateInternal,

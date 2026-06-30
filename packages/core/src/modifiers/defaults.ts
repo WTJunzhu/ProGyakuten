@@ -1,4 +1,4 @@
-import type { CreateGameRulesOptions, GameRuleConfig, GameRules } from "./types";
+import type { CreateGameRulesOptions, GameRuleConfig, GameRules } from "./types.js";
 
 export const defaultRuleConfig: GameRuleConfig = {
   allowSnatch: true,
