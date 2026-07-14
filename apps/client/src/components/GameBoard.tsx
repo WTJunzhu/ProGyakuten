@@ -458,13 +458,15 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const handleHandDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    setHoverX(e.nativeEvent.offsetX);
+    const rect = handContainerRef.current?.getBoundingClientRect();
+    if (rect) setHoverX(e.clientX - rect.left);
   }, []);
 
   // ─── Hover: mouse move on hand container ───
   const handleHandMouseMove = useCallback((e: React.MouseEvent) => {
     if (dragState) return;
-    setHoverX(e.nativeEvent.offsetX);
+    const rect = handContainerRef.current?.getBoundingClientRect();
+    if (rect) setHoverX(e.clientX - rect.left);
   }, [dragState]);
 
   // ─── Hover: mouse leave ───
