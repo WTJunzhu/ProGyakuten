@@ -146,15 +146,19 @@ interface CardLayout {
 function computeCardLayouts(
   count: number,
   containerWidth: number,
-  hoverX: number | null
+  hoverX: number | null,
+  opts?: { cardWidth?: number; maxScale?: number; scaleSigma?: number }
 ): CardLayout[] {
+  const cw = opts?.cardWidth ?? CARD_WIDTH;
+  const maxS = opts?.maxScale ?? MAX_SCALE;
+  const sigma = opts?.scaleSigma ?? SCALE_SIGMA;
   const baseVisible =
     count > 0
-      ? Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, (containerWidth - CARD_WIDTH) / count))
+      ? Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, (containerWidth - cw) / count))
       : MIN_VISIBLE;
-  const totalWidth = count > 0 ? (count - 1) * baseVisible + CARD_WIDTH : 0;
+  const totalWidth = count > 0 ? (count - 1) * baseVisible + cw : 0;
   const finalGap =
-    totalWidth > containerWidth ? (containerWidth - CARD_WIDTH) / count : baseVisible;
+    totalWidth > containerWidth ? (containerWidth - cw) / count : baseVisible;
 
   // Estimate offset using non-magnified spread so we can align
   // hoverX (container coords) with card centers during the loop.
@@ -168,16 +172,16 @@ function computeCardLayouts(
   let accLeft = 0;
 
   for (let i = 0; i < count; i++) {
-    const center = accLeft + CARD_WIDTH / 2;
+    const center = accLeft + cw / 2;
     let scale = 1;
     let zIndex = i;
     let liftY = 0;
 
     if (localHoverX !== null) {
       const dist = Math.abs(center - localHoverX);
-      const extra = (MAX_SCALE - 1) * Math.exp(-(dist * dist) / (2 * SCALE_SIGMA * SCALE_SIGMA));
+      const extra = (maxS - 1) * Math.exp(-(dist * dist) / (2 * sigma * sigma));
       scale = 1 + extra;
-      zIndex = dist < CARD_WIDTH * 1.2 ? count + 10 : i;
+      zIndex = dist < cw * 1.2 ? count + 10 : i;
       liftY = -(scale - 1) * 34;
     }
 
@@ -223,6 +227,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
+  const [teammateHoverX, setTeammateHoverX] = useState<Record<string, number>>({});
+  const teammateExpandRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Phase timer ticker
@@ -584,8 +590,11 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           const isTeammate = myTeam === "teamA"
             ? gameState.teams.teamA.includes(p.playerId)
             : gameState.teams.teamB.includes(p.playerId);
-          const handHtml = isTeammate
+          const teammateCards: Card[] | null = isTeammate
             ? (teammateHands[p.playerId] ?? [])
+            : null;
+          const latestCard = teammateCards && teammateCards.length > 0
+            ? teammateCards[teammateCards.length - 1]
             : null;
 
           return (
@@ -604,17 +613,70 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                   onClick={() => handleTargetPortraitClick(p.playerId)}
                 />
               )}
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center" }}>
-                {handHtml
-                  ? handHtml.map((c) => (
-                      <div key={c.id} className={`card small-card ${c.color}`}>{cardFace(c)}</div>
-                    ))
-                  : Array.from({ length: p.handCount }, (_, i) => (
-                      <span key={i} className="card-back" />
-                    ))
-                }
-              </div>
-              <div className="hint">手牌: {p.handCount}</div>
+
+              {isTeammate && teammateCards && teammateCards.length > 0 ? (
+                /* ─── Teammate: expandable hand ─── */
+                <div className="teammate-hand-wrapper">
+                  <div className="teammate-hand-collapsed">
+                    <div className={`card small-card ${latestCard!.color}`}>
+                      {cardFace(latestCard!)}
+                    </div>
+                    {teammateCards.length > 1 && (
+                      <span className="hand-count-badge">+{teammateCards.length - 1}</span>
+                    )}
+                  </div>
+                  <div
+                    className="teammate-hand-expanded"
+                    ref={(el) => { teammateExpandRefs.current[p.playerId] = el; }}
+                    onMouseMove={(e) => {
+                      const rect = teammateExpandRefs.current[p.playerId]?.getBoundingClientRect();
+                      if (rect) {
+                        setTeammateHoverX(prev => ({ ...prev, [p.playerId]: e.clientX - rect.left }));
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      setTeammateHoverX(prev => {
+                        const next = { ...prev };
+                        delete next[p.playerId];
+                        return next;
+                      });
+                    }}
+                  >
+                    <div className="teammate-mini-hand">
+                      {(() => {
+                        const tw = teammateExpandRefs.current[p.playerId]?.clientWidth ?? 200;
+                        const layouts = computeCardLayouts(
+                          teammateCards.length, tw,
+                          teammateHoverX[p.playerId] ?? null,
+                          { cardWidth: 36, maxScale: 1.3, scaleSigma: 55 }
+                        );
+                        return teammateCards.map((c, i) => (
+                          <div
+                            key={c.id}
+                            className={`card small-card ${c.color}`}
+                            style={{
+                              position: "absolute",
+                              left: layouts[i].left,
+                              top: 0,
+                              zIndex: layouts[i].zIndex,
+                              transform: `scale(${layouts[i].scale.toFixed(3)})`,
+                              transformOrigin: "bottom center",
+                              transition: "left 0.15s ease, transform 0.15s ease",
+                            }}
+                          >{cardFace(c)}</div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ─── Enemy: single card-back + centered count ─── */
+                <div className="enemy-hand-area">
+                  <div className="card-back enemy-card-back">
+                    <span className="hand-count-center">{p.handCount}</span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -781,6 +843,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
               );
             })}
           </div>
+          <div className="own-hand-count">{hand.length}</div>
         </div>
       </div>
       )} {/* end of isSpectating ? ... : player-area */}

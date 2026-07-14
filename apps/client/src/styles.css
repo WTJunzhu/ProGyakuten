@@ -216,6 +216,128 @@ button:disabled {
   opacity: 0.55;
 }
 
+/* ─── Enemy hand: single card-back + centered count ─── */
+.enemy-hand-area {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.enemy-card-back {
+  position: relative;
+  width: 48px;
+  height: 72px;
+  margin: 0;
+}
+
+.hand-count-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+/* ─── Hand count badge (corner) ─── */
+.hand-count-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent-color);
+  color: #222;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* ─── Teammate expandable hand ─── */
+.teammate-hand-wrapper {
+  position: relative;
+  margin-top: 10px;
+  height: 56px;
+  transition: height 0.35s ease;
+}
+
+.teammate-hand-wrapper:hover {
+  height: 90px;
+}
+
+.teammate-hand-collapsed {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.teammate-hand-wrapper:hover .teammate-hand-collapsed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.teammate-hand-collapsed > .small-card {
+  position: relative;
+}
+
+.teammate-hand-expanded {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.1s;
+  pointer-events: none;
+}
+
+.teammate-hand-wrapper:hover .teammate-hand-expanded {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.teammate-mini-hand {
+  position: relative;
+  height: 56px;
+}
+
+.teammate-mini-hand > .small-card {
+  position: absolute;
+  top: 2px;
+}
+
+/* ─── Own hand count badge ─── */
+.own-hand-count {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--accent-color);
+  color: #222;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+  pointer-events: none;
+}
+
 /* ─── Table Center ─── */
 .table-center {
   display: flex;
@@ -383,6 +505,7 @@ button:disabled {
 }
 
 .hand-scroll {
+  position: relative;
   width: 100%;
   overflow: visible;
   padding: 8px 12px 2px;
