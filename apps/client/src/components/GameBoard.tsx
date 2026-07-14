@@ -156,6 +156,14 @@ function computeCardLayouts(
   const finalGap =
     totalWidth > containerWidth ? (containerWidth - CARD_WIDTH) / count : baseVisible;
 
+  // Estimate offset using non-magnified spread so we can align
+  // hoverX (container coords) with card centers during the loop.
+  const estSpread = count * finalGap;
+  const estOffset = Math.max(0, (containerWidth - estSpread) / 2);
+
+  // Translate hoverX into the same pre-offset coordinate space as accLeft.
+  const localHoverX = hoverX !== null ? hoverX - estOffset : null;
+
   const layouts: CardLayout[] = [];
   let accLeft = 0;
 
@@ -165,8 +173,8 @@ function computeCardLayouts(
     let zIndex = i;
     let liftY = 0;
 
-    if (hoverX !== null) {
-      const dist = Math.abs(center - hoverX);
+    if (localHoverX !== null) {
+      const dist = Math.abs(center - localHoverX);
       const extra = (MAX_SCALE - 1) * Math.exp(-(dist * dist) / (2 * SCALE_SIGMA * SCALE_SIGMA));
       scale = 1 + extra;
       zIndex = dist < CARD_WIDTH * 1.2 ? count + 10 : i;
@@ -177,7 +185,7 @@ function computeCardLayouts(
     accLeft += finalGap * scale;
   }
 
-  // Center the whole hand in the container
+  // Re-center using the actual spread width
   const spreadWidth = accLeft;
   const offset = Math.max(0, (containerWidth - spreadWidth) / 2);
   for (const layout of layouts) {
