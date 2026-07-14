@@ -398,11 +398,11 @@ button:disabled {
 .hand-container > .card {
   position: absolute;
   top: 0;
-  transition: left 0.15s ease, transform 0.15s ease;
+  transition: left 0.18s ease, transform 0.18s ease;
 }
 
+/* :hover transform is now handled by JS dock magnification */
 .hand-container > .card:hover {
-  transform: translateY(-14px);
   z-index: 10;
 }
 

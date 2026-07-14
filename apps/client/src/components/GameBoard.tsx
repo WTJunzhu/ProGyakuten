@@ -132,8 +132,60 @@ function CharacterPanel({
 const LONG_PRESS_MS = 300;
 const MIN_VISIBLE = 28;
 const MAX_VISIBLE = 92;
-const MAX_EXPAND = 36;
-const SIGMA = 90;
+const CARD_WIDTH = 80;
+const MAX_SCALE = 1.48;
+const SCALE_SIGMA = 72;
+
+interface CardLayout {
+  left: number;
+  scale: number;
+  zIndex: number;
+  liftY: number;
+}
+
+function computeCardLayouts(
+  count: number,
+  containerWidth: number,
+  hoverX: number | null
+): CardLayout[] {
+  const baseVisible =
+    count > 0
+      ? Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, (containerWidth - CARD_WIDTH) / count))
+      : MIN_VISIBLE;
+  const totalWidth = count > 0 ? (count - 1) * baseVisible + CARD_WIDTH : 0;
+  const finalGap =
+    totalWidth > containerWidth ? (containerWidth - CARD_WIDTH) / count : baseVisible;
+
+  const layouts: CardLayout[] = [];
+  let accLeft = 0;
+
+  for (let i = 0; i < count; i++) {
+    const center = accLeft + CARD_WIDTH / 2;
+    let scale = 1;
+    let zIndex = i;
+    let liftY = 0;
+
+    if (hoverX !== null) {
+      const dist = Math.abs(center - hoverX);
+      const extra = (MAX_SCALE - 1) * Math.exp(-(dist * dist) / (2 * SCALE_SIGMA * SCALE_SIGMA));
+      scale = 1 + extra;
+      zIndex = dist < CARD_WIDTH * 1.2 ? count + 10 : i;
+      liftY = -(scale - 1) * 34;
+    }
+
+    layouts.push({ left: accLeft, scale, zIndex, liftY });
+    accLeft += finalGap * scale;
+  }
+
+  // Center the whole hand in the container
+  const spreadWidth = accLeft;
+  const offset = Math.max(0, (containerWidth - spreadWidth) / 2);
+  for (const layout of layouts) {
+    layout.left += offset;
+  }
+
+  return layouts;
+}
 
 export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const gameState = useGameStore((s) => s.gameState);
@@ -222,30 +274,9 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     return !myTeamPlayers.includes(targetPlayerId);
   };
 
-  // ─── Card position calculation with hover expansion ───
+  // ─── Card layout: Mac-Dock-style magnification ───
   const containerWidth = handContainerRef.current?.clientWidth ?? 800;
-  const cardCount = hand.length;
-  const baseVisible = cardCount > 0 ? Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, (containerWidth - 80) / cardCount)) : MIN_VISIBLE;
-  const totalWidth = cardCount > 0 ? (cardCount - 1) * baseVisible + 80 : 0;
-  const visibleWidth = totalWidth > containerWidth ? (containerWidth - 80) / cardCount : baseVisible;
-
-  const getCardLeft = useCallback((index: number): number => {
-    if (!handContainerRef.current) return index * visibleWidth;
-    const cw = handContainerRef.current.clientWidth;
-    const count = hand.length;
-    const vw = Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, (cw - 80) / count));
-    const tw = count > 0 ? (count - 1) * vw + 80 : 0;
-    const finalVw = tw > cw ? (cw - 80) / count : vw;
-    let left = index * finalVw;
-    if (hoverX !== null) {
-      const cardCenter = left + 40;
-      const dist = cardCenter - hoverX;
-      const expand = MAX_EXPAND * Math.exp(-(dist * dist) / (2 * SIGMA * SIGMA));
-      const direction = dist < 0 ? -1 : 1;
-      left += expand * direction;
-    }
-    return left;
-  }, [hoverX, hand.length]);
+  const cardLayouts = computeCardLayouts(hand.length, containerWidth, hoverX);
 
   // ─── Action handlers ───
   const playCard = (card: Card) => {
@@ -701,9 +732,12 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                 dragState?.cardId === card.id && "dragging"
               ].filter(Boolean).join(" ");
 
+              const layout = cardLayouts[index];
               const cardStyle: React.CSSProperties = {
-                left: getCardLeft(index),
-                zIndex: hoverX !== null ? 1 : index
+                left: layout.left,
+                zIndex: layout.zIndex,
+                transform: `scale(${layout.scale.toFixed(3)}) translateY(${layout.liftY.toFixed(1)}px)`,
+                transformOrigin: "bottom center",
               };
 
               const comboStyle: Record<string, string> = {};
