@@ -202,7 +202,7 @@ function startGameIntro(room: RoomState): void {
   }, GAME_INTRO_MS);
 }
 
-async function launchGame(room: RoomState): Promise<void> {
+export async function launchGame(room: RoomState): Promise<void> {
   // Build character-id assignment map (playerId → characterId)
   const charIdAssignments: Record<string, string> = {};
   if (room.characterDraft) {

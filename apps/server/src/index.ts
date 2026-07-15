@@ -14,7 +14,7 @@ import { handleReconnect, handleDisconnect } from "./connection.js";
 import { persistence, db } from "./db.js";
 import { register, login, verifyToken, setTokenCharacter } from "./auth.js";
 import { listCharacters, createCharacter } from "./character.js";
-import { startCharacterDraft, handleSelectGameCharacter } from "./character-draft.js";
+import { startCharacterDraft, handleSelectGameCharacter, launchGame } from "./character-draft.js";
 import { handleJoinRoomAsSpectator, handleLeaveSpectator } from "./spectator.js";
 
 const MAX_CHARACTERS = 3;
@@ -329,7 +329,8 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      startCharacterDraft(room);
+      // Character system is currently disabled — skip draft & intro, launch directly
+      launchGame(room).catch(console.error);
       return;
     }
 
