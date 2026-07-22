@@ -14,7 +14,8 @@
 body {
   margin: 0;
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  background: radial-gradient(circle at top, #2d5a27 0%, #173115 100%);
+  background:
+    radial-gradient(circle at top, #2d5a27 0%, #173315 100%);
   color: var(--text-color);
   min-height: 100vh;
   overflow: hidden;
@@ -74,6 +75,10 @@ button:disabled {
   height: 100vh;
   overflow: hidden;
   cursor: pointer;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.5)),
+    url(/images/backgrounds/title.jpg) center/cover no-repeat;
+  background-color: #173315;
 }
 
 .title-view::before {
@@ -138,6 +143,10 @@ button:disabled {
   width: 100vw;
   height: 100vh;
   padding: 24px;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.45)),
+    url(/images/backgrounds/lobby.jpg) center/cover no-repeat;
+  background-color: #173315;
 }
 
 .center-card {
@@ -187,6 +196,10 @@ button:disabled {
   grid-template-rows: 150px 1fr 230px;
   width: 100vw;
   height: 100vh;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.35)),
+    url(/images/backgrounds/game.jpg) center/cover no-repeat;
+  background-color: #173315;
 }
 
 /* ─── Opponents Area ─── */
@@ -787,6 +800,20 @@ button:disabled {
   justify-content: center;
   background: rgba(0, 0, 0, 0.72);
   z-index: 95;
+}
+
+.settlement-overlay.result-win {
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55)),
+    url(/images/backgrounds/result_win.jpg) center/cover no-repeat;
+  background-color: rgba(0,0,0,0.72);
+}
+
+.settlement-overlay.result-lose {
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55)),
+    url(/images/backgrounds/result_lose.jpg) center/cover no-repeat;
+  background-color: rgba(0,0,0,0.72);
 }
 
 .settlement-card {

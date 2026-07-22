@@ -561,7 +561,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     <div className="game-view" style={{ display: "grid" }}>
       {/* Settlement overlay */}
       {gameOverState && (
-        <div className="settlement-overlay" style={{ display: "flex" }}>
+        <div className={`settlement-overlay ${gameOverState.winnerTeam === myTeam ? "result-win" : "result-lose"}`} style={{ display: "flex" }}>
           <div className="panel settlement-card">
             <h2 style={{ margin: "0 0 10px" }}>
               {gameOverState.winnerTeam === myTeam ? "我方胜利" : "我方失败"}

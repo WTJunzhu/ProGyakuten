@@ -396,9 +396,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         });
         addLog(`游戏结束: ${won ? "我方胜利" : "我方失败"}`);
         toast(won ? "我方胜利" : "我方失败", won ? "success" : "warning");
-        // 胜负 BGM + 结算演出
+        // 胜负 BGM
         playResultBgm(won);
-        triggerPresentation(won ? "game.result.win" : "game.result.lose");
         break;
       }
 
