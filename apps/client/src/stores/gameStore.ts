@@ -18,6 +18,17 @@ import { playResultBgm, syncGameBgm } from "../audio";
 
 export type View = "title" | "login" | "lobby" | "room" | "game" | "character_draft" | "game_intro";
 
+/** 聚焦放大目标 */
+export type FocusTargetType = "player" | "discard" | "player_then_discard";
+
+export interface FocusTarget {
+  type: FocusTargetType;
+  /** 聚焦的玩家 ID（type 为 player / player_then_discard 时） */
+  playerId?: string;
+  /** 动画开始时间戳 */
+  startedAt: number;
+}
+
 const SESSIONS_KEY = "new_uno_sessions";
 const LAST_PLAYER_KEY = "new_uno_last_player";
 const TAB_PLAYER_KEY = "new_uno_tab_player"; // sessionStorage: per-tab player identity
@@ -98,6 +109,10 @@ interface GameState {
 
   // Game over
   gameOverState: GamePublicState | null;
+
+  // Focus zoom
+  focusTarget: FocusTarget | null;
+  setFocusTarget: (target: FocusTarget | null) => void;
 
   // Log
   logLines: string[];
@@ -249,6 +264,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   gameOverState: null,
 
+  focusTarget: null,
+  setFocusTarget: (target) => set({ focusTarget: target }),
+
   logLines: [],
   addLog: (line) => set((s) => ({ logLines: [`[${new Date().toLocaleTimeString()}] ${line}`, ...s.logLines].slice(0, 100) })),
 
@@ -380,6 +398,51 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         // ── 动态 BGM（优势/劣势切换）────────────────────────────
         syncGameBgm(event.state, prev.playerId);
+
+        // ── 聚焦放大效果触发 ──────────────────────────────────────
+        {
+          const myId = prev.playerId;
+
+          // 1) 打出最后一张牌：game.finishing hint
+          if (event.presentationHint === "game.finishing") {
+            // 找到出完牌的玩家（handCount === 0 或 saidUno 后刚好空手）
+            const finishingPlayer = event.state.players.find((p) => p.handCount === 0);
+            if (finishingPlayer) {
+              if (finishingPlayer.playerId === myId) {
+                // 自己：只放大弃牌堆 1.5s
+                set({ focusTarget: { type: "discard", startedAt: Date.now() } });
+                setTimeout(() => set({ focusTarget: null }), 2000);
+              } else {
+                // 他人：先聚焦玩家 0.75s → 平移到弃牌堆 0.75s → 收回
+                set({ focusTarget: { type: "player_then_discard", playerId: finishingPlayer.playerId, startedAt: Date.now() } });
+                setTimeout(() => set({ focusTarget: null }), 2000);
+              }
+            }
+          }
+
+          // 2) 喊UNO：检测 saidUno 从 false → true（其他玩家）
+          if (!event.presentationHint) {
+            const prevPlayers = prev.gameState?.players ?? [];
+            for (const p of event.state.players) {
+              const prevP = prevPlayers.find((pp) => pp.playerId === p.playerId);
+              if (prevP && !prevP.saidUno && p.saidUno && p.playerId !== myId) {
+                set({ focusTarget: { type: "player", playerId: p.playerId, startedAt: Date.now() } });
+                setTimeout(() => set({ focusTarget: null }), 1500);
+              }
+            }
+
+            // 3) 累积加牌转移：drawCardStack 增加且顶牌为加牌/反转
+            const prevStack = prev.gameState?.drawCardStack ?? 0;
+            const newStack = event.state.drawCardStack;
+            if (newStack > prevStack) {
+              const kind = event.state.topCard.kind;
+              if (kind === "reverse" || kind === "draw_two" || kind === "wild_draw_four") {
+                set({ focusTarget: { type: "discard", startedAt: Date.now() } });
+                setTimeout(() => set({ focusTarget: null }), 1500);
+              }
+            }
+          }
+        }
 
         get().saveSession();
         break;

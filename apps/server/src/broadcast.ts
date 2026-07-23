@@ -108,19 +108,47 @@ export function broadcastGameState(room: RoomState, message?: string, presentati
 export function finalizeAction(room: RoomState, result: ActionResult, baseMessage: string): string | null {
   const mergedMessage = [baseMessage, ...(result.announcements ?? [])].filter(Boolean).join(" | ");
   if (room.game?.winnerTeam) {
-    const finalState = toPublicState(room.game);
+    // 先广播 statePatch（含 game.finishing hint），让客户端展示聚焦效果
     room.status = "game_over";
     room.phase = undefined;
     room.drawnCardWindow = undefined;
     room.phaseToken += 1;
     const everyone = [...room.players, ...(room.spectators ?? [])];
-    for (const playerId of everyone) {
+    for (const playerId of room.players) {
       const conn = playersById.get(playerId);
       if (conn && conn.roomId === room.roomId) {
-        send(conn.ws, { type: "gameOver", state: finalState });
+        send(conn.ws, buildStateEvent(room, playerId, mergedMessage || undefined, "game.finishing"));
+      }
+    }
+    for (const spectatorId of room.spectators ?? []) {
+      const conn = playersById.get(spectatorId);
+      if (conn && conn.roomId === room.roomId) {
+        send(conn.ws, {
+          type: "statePatch",
+          state: toPublicState(room.game!),
+          phase: room.phase!,
+          hand: [],
+          teammateHands: {},
+          message: mergedMessage || undefined,
+          allowedActions: [],
+          lastSeq: undefined,
+          presentationHint: "game.finishing"
+        });
       }
     }
     broadcastToLobby(getLobbyStateEvent());
+
+    // 3 秒后发送 gameOver，给客户端展示聚焦放大效果的时间
+    const finalState = toPublicState(room.game);
+    setTimeout(() => {
+      for (const playerId of everyone) {
+        const conn = playersById.get(playerId);
+        if (conn && conn.roomId === room.roomId) {
+          send(conn.ws, { type: "gameOver", state: finalState });
+        }
+      }
+    }, 3000);
+
     return null;
   }
   return mergedMessage;

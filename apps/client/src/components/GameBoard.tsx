@@ -219,11 +219,13 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const setPendingSkill = useGameStore((s) => s.setPendingSkill);
   const isSpectating = useGameStore((s) => s.isSpectating);
   const spectators = useGameStore((s) => s.spectators);
+  const focusTarget = useGameStore((s) => s.focusTarget);
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
   const handContainerRef = useRef<HTMLDivElement>(null);
   const tableCenterRef = useRef<HTMLDivElement>(null);
+  const gameViewRef = useRef<HTMLDivElement>(null);
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
@@ -241,6 +243,58 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     }, 100);
     return () => clearInterval(interval);
   }, [phase]);
+
+  // ── Focus zoom effect ──────────────────────────────────────
+  const [focusStyle, setFocusStyle] = useState<React.CSSProperties>({});
+
+  useEffect(() => {
+    if (!focusTarget || !gameViewRef.current) {
+      setFocusStyle({});
+      return;
+    }
+
+    const viewEl = gameViewRef.current;
+    const viewRect = viewEl.getBoundingClientRect();
+    const scale = 1.6;
+
+    const computeTransformForTarget = (targetEl: HTMLElement | null): React.CSSProperties => {
+      if (!targetEl) return {};
+      const r = targetEl.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      // translate needed to center (cx, cy) after scale
+      const tx = -(cx - viewRect.left - viewRect.width / 2);
+      const ty = -(cy - viewRect.top - viewRect.height / 2);
+      return { transform: `scale(${scale}) translate(${tx}px, ${ty}px)` };
+    };
+
+    if (focusTarget.type === "discard") {
+      // 聚焦弃牌堆 — 找 .discard 元素
+      const discardEl = viewEl.querySelector(".discard") as HTMLElement | null;
+      setFocusStyle(computeTransformForTarget(discardEl));
+    } else if (focusTarget.type === "player") {
+      // 聚焦某玩家 — 找 [data-player-id="xxx"] 或 .player-area（自己）
+      const playerId_f = focusTarget.playerId;
+      if (playerId_f === playerId) {
+        // 自己不用放大（UNO 场景不会触发，但兜底）
+        setFocusStyle({});
+      } else {
+        const oppEl = viewEl.querySelector(`[data-player-id="${playerId_f}"]`) as HTMLElement | null;
+        setFocusStyle(computeTransformForTarget(oppEl));
+      }
+    } else if (focusTarget.type === "player_then_discard") {
+      // 先聚焦玩家，0.75s 后平移到弃牌堆
+      const oppEl = viewEl.querySelector(`[data-player-id="${focusTarget.playerId}"]`) as HTMLElement | null;
+      setFocusStyle(computeTransformForTarget(oppEl));
+
+      const timer = setTimeout(() => {
+        const discardEl = viewEl.querySelector(".discard") as HTMLElement | null;
+        setFocusStyle(computeTransformForTarget(discardEl));
+      }, 750);
+
+      return () => clearTimeout(timer);
+    }
+  }, [focusTarget, playerId]);
 
   // Cleanup long press timer
   useEffect(() => {
@@ -558,7 +612,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   }, [dragState, gameState, allowedActions, playerId, playableDrawnCardId, phase, hand, isInPlayArea, isInHandArea, getDropIndex, handleSnatch, playCard, handleCardClick, reorderHand]);
 
   return (
-    <div className="game-view" style={{ display: "grid" }}>
+    <div className="game-view" ref={gameViewRef} style={{ display: "grid", ...focusStyle }}>
       {/* Settlement overlay */}
       {gameOverState && (
         <div className={`settlement-overlay ${gameOverState.winnerTeam === myTeam ? "result-win" : "result-lose"}`} style={{ display: "flex" }}>
@@ -600,6 +654,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           return (
             <div
               key={p.playerId}
+              data-player-id={p.playerId}
               className={`opponent ${p.playerId === gameState.currentPlayerId ? "active" : ""} ${!p.connected ? "disconnected" : ""}`}
             >
               <div style={{ fontWeight: 700 }}>

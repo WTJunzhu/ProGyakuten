@@ -196,6 +196,8 @@ button:disabled {
   grid-template-rows: 150px 1fr 230px;
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
+  transition: transform 0.35s ease;
   background:
     linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.35)),
     url(/images/backgrounds/game.jpg) center/cover no-repeat;
