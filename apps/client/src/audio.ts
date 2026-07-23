@@ -301,6 +301,15 @@ class AudioController {
     this.playBgmGroup(won ? "result_win" : "result_lose", true);
   }
 
+  /** 立即停止 BGM（游戏结束时聚焦效果期间静音） */
+  stopBgm(): void {
+    this.bgm.pause();
+    this.bgm.currentTime = 0;
+    this.currentBgmName = null;
+    this.currentBgmGroup = null;
+    this.currentTrack = null;
+  }
+
   playCardSfx(kind: Card["kind"]): void {
     let sfxName: SfxName | null = null;
     if (kind === "reverse") sfxName = "reverse";
@@ -442,6 +451,10 @@ export function syncGameBgm(state: GamePublicState, playerId: string | null): vo
 
 export function playResultBgm(won: boolean): void {
   audioController.playResult(won);
+}
+
+export function stopBgmImmediately(): void {
+  audioController.stopBgm();
 }
 
 export function playCardSfx(kind: Card["kind"]): void {

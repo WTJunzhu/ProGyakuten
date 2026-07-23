@@ -14,7 +14,7 @@ import type {
 } from "@pro-gyakuten/protocol";
 import { useToastStore } from "./toastStore";
 import { triggerPresentation } from "../presentation/store";
-import { playResultBgm, syncGameBgm } from "../audio";
+import { playResultBgm, stopBgmImmediately, syncGameBgm } from "../audio";
 
 export type View = "title" | "login" | "lobby" | "room" | "game" | "character_draft" | "game_intro";
 
@@ -405,6 +405,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
           // 1) 打出最后一张牌：game.finishing hint
           if (event.presentationHint === "game.finishing") {
+            // 立即停止对局 BGM，聚焦效果期间保持安静
+            stopBgmImmediately();
             // 找到出完牌的玩家（handCount === 0 或 saidUno 后刚好空手）
             const finishingPlayer = event.state.players.find((p) => p.handCount === 0);
             if (finishingPlayer) {
