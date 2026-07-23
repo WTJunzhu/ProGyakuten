@@ -78,6 +78,7 @@ export function drawOne(state: GameStateInternal, player: PlayerState): Card {
   player.hand.push(card);
   if (player.hand.length !== 1) {
     player.missedUnoPending = false;
+    player.saidUno = false;
   }
   applyRuleHooks(state.rules.hooks, (hook) => {
     hook.afterCardDrawn?.({ state, player, card });
@@ -158,9 +159,10 @@ export function finishPlay(state: GameStateInternal, player: PlayerState, announ
 
 export function markUnoStateAfterPlay(state: GameStateInternal, player: PlayerState): void {
   if (player.hand.length === 1) {
-    player.missedUnoPending = player.saidUnoForTurnId !== state.turnId;
+    player.missedUnoPending = !player.saidUno;
   } else {
     player.missedUnoPending = false;
+    player.saidUno = false;
   }
 }
 
@@ -197,7 +199,7 @@ export function toPublicState(state: GameStateInternal): GamePublicState {
     seat: player.seat,
     handCount: player.hand.length,
     connected: player.connected,
-    saidUno: player.saidUnoForTurnId === state.turnId
+    saidUno: !!player.saidUno
   }));
 
   return {

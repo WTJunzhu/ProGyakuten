@@ -165,6 +165,30 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       return;
     }
 
+    if (event.type === "comboPlay") {
+      // wild combo: 刚摸到的牌必须是 wildCardId
+      if (event.wildCardId !== room.drawnCardWindow.cardId) {
+        rejectWith("摸牌判定阶段的组合出牌中，wild牌必须是刚摸到的那张牌");
+        return;
+      }
+      const result = applyComboPlay(
+        room.game,
+        event.playerId,
+        event.turnId,
+        event.seq,
+        event.wildCardId,
+        event.targetCardId,
+        event.declaredColor
+      );
+      if (!result.ok) {
+        rejectWith(result.message ?? "组合出牌失败", result.code === "INVALID_CARD" ? "INVALID_CARD" : "INVALID_ACTION");
+        return;
+      }
+      const message = finalizeAction(room, result, `玩家 ${event.playerId} 使用刚摸到的 Wild 组合出牌`);
+      if (room.status === "in_game") startSnatchWindow(room, event.playerId, message ?? undefined);
+      return;
+    }
+
     if (event.type === "passTurn") {
       const result = applyPassTurn(room.game, event.playerId, event.turnId, event.seq);
       if (!result.ok) {
@@ -220,7 +244,14 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith(result.message ?? "摸牌失败");
       return;
     }
-    const playable = isCardPlayable(room.game, result.drawnCard);
+    let playable = isCardPlayable(room.game, result.drawnCard);
+    // wild 牌不能单独出，但可以作为 combo 的 wild 牌使用
+    if (!playable && result.drawnCard.kind === "wild") {
+      const player = room.game.players.find((p) => p.playerId === event.playerId);
+      if (player && player.hand.some((c) => c.kind !== "wild" && c.kind !== "wild_draw_four")) {
+        playable = true;
+      }
+    }
     startPostDrawWindow(room, event.playerId, result.drawnCard.id, playable, `玩家 ${event.playerId} 摸了一张牌`);
     return;
   }

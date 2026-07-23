@@ -6,7 +6,7 @@ export interface PlayerState {
   seat: number;
   hand: Card[];
   connected: boolean;
-  saidUnoForTurnId?: number;
+  saidUno?: boolean;
   missedUnoPending?: boolean;
   lastSeq: number;
 }

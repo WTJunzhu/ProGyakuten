@@ -286,7 +286,18 @@ export function decidePostDraw(
 ): AiDecision {
   const player = state.players.find(p => p.playerId === playerId)!;
   const drawnCard = player.hand.find(c => c.id === drawnCardId);
-  if (!drawnCard || !isCardPlayable(state, drawnCard)) return { type: "passDrawn" };
+  if (!drawnCard) return { type: "passDrawn" };
+
+  // wild 牌检查 combo 可能性
+  if (drawnCard.kind === "wild" && !isCardPlayable(state, drawnCard)) {
+    const comboTarget = player.hand.find(c => c.kind !== "wild" && c.kind !== "wild_draw_four");
+    if (comboTarget) {
+      return { type: "comboPlay", wildCardId: drawnCard.id, targetCardId: comboTarget.id, declaredColor: pickBestColor(player.hand) };
+    }
+    return { type: "passDrawn" };
+  }
+
+  if (!isCardPlayable(state, drawnCard)) return { type: "passDrawn" };
 
   // 功能牌或手牌很少时打出
   if (drawnCard.kind !== "number" || player.hand.length <= 3) {

@@ -29,9 +29,10 @@ function isCardSnatchable(card: Card, state: GameState, allowed: AllowedAction[]
   return isCardSnatchableLite({ card, topCard: state.topCard, drawCardStack: state.drawCardStack });
 }
 
-function canStartWildCombo(card: Card, state: GameState, allowed: AllowedAction[], playerId: string, phase: string | undefined): boolean {
+function canStartWildCombo(card: Card, state: GameState, allowed: AllowedAction[], playerId: string, phase: string | undefined, playableDrawnCardId?: string): boolean {
   if (card.kind !== "wild") return false;
   if (phase === "snatch_window") return isActionAllowed(allowed, "snatch");
+  if (phase === "post_draw_window") return playableDrawnCardId === card.id && isActionAllowed(allowed, "play_drawn");
   return state.currentPlayerId === playerId && isActionAllowed(allowed, "play");
 }
 
@@ -42,6 +43,10 @@ function isWildComboTarget(card: Card, pendingWildCard: Card | null, pendingWild
   const transformed: Card = { ...card, color: pendingWildColor as Card["color"] };
   if (phase === "snatch_window") {
     return isCardSnatchable(transformed, state, allowed, phase);
+  }
+  if (phase === "post_draw_window") {
+    // combo target 牌只需要组合后可出即可
+    return isCardPlayableLite({ card: transformed, topCard: state.topCard, drawCardStack: state.drawCardStack, penaltySourceKind: state.penaltySourceKind, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
   }
   if (!isActionAllowed(allowed, "play")) return false;
   return isCardPlayableLite({ card: transformed, topCard: state.topCard, drawCardStack: state.drawCardStack, penaltySourceKind: state.penaltySourceKind, skipConstraint: state.skipConstraint, currentPlayerId: state.currentPlayerId, playerId });
@@ -418,7 +423,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     }
     const canPlay = isCardPlayable(card, gameState, allowedActions, playerId, playableDrawnCardId, phase?.phase);
     const canSnatch = isCardSnatchable(card, gameState, allowedActions, phase?.phase);
-    const canCombo = canStartWildCombo(card, gameState, allowedActions, playerId, phase?.phase);
+    const canCombo = canStartWildCombo(card, gameState, allowedActions, playerId, phase?.phase, playableDrawnCardId);
     if (canSnatch) { handleSnatch(card); return; }
     if (canCombo) { handleComboStart(card); return; }
     if (canPlay) { playCard(card); return; }
@@ -838,7 +843,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             {hand.map((card, index) => {
               const canPlay = isCardPlayable(card, gameState, allowedActions, playerId, playableDrawnCardId, phase?.phase);
               const canSnatch = isCardSnatchable(card, gameState, allowedActions, phase?.phase);
-              const canCombo = canStartWildCombo(card, gameState, allowedActions, playerId, phase?.phase);
+              const canCombo = canStartWildCombo(card, gameState, allowedActions, playerId, phase?.phase, playableDrawnCardId);
               const comboTarget = isWildComboTarget(card, pendingWildCard, pendingWildColor, gameState, allowedActions, playerId, phase?.phase);
               const enabled = pendingWildCard
                 ? card.id === pendingWildCard.id || comboTarget

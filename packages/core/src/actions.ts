@@ -270,7 +270,7 @@ export function applyCallUno(
     return { ok: false, code: "INVALID_ACTION", message: "UNO cannot be called right now" };
   }
 
-  player.saidUnoForTurnId = state.turnId;
+  player.saidUno = true;
   player.missedUnoPending = false;
   return { ok: true, announcements: [`玩家 ${player.playerId} 喊了 UNO！`] };
 }

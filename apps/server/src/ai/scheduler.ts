@@ -235,6 +235,22 @@ function handleAiPostDraw(roomId: string, token: number): void {
     }
     const msg = finalizeAction(room, result, `AI ${playerId} 打出刚摸到的牌`);
     if (room.status === "in_game") startSnatchWindow(room, playerId, msg ?? undefined);
+  } else if (decision.type === "comboPlay") {
+    // 摸到 wild 牌：组合出牌
+    if (player.hand.length === 2) {
+      const unoResult = applyCallUno(room.game, playerId, room.game.turnId, seq);
+      if (unoResult.ok) seq++;
+    }
+    const result = applyComboPlay(
+      room.game, playerId, room.game.turnId, seq,
+      decision.wildCardId, decision.targetCardId, decision.declaredColor
+    );
+    if (!result.ok) {
+      doPass(room, playerId, player.lastSeq + 1);
+      return;
+    }
+    const msg = finalizeAction(room, result, `AI ${playerId} 使用刚摸到的 Wild 组合出牌`);
+    if (room.status === "in_game") startSnatchWindow(room, playerId, msg ?? undefined);
   } else {
     doPass(room, playerId, seq);
   }
