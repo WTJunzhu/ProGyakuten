@@ -42,7 +42,18 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith(result.message ?? "UNO check failed");
       return;
     }
-    broadcastGameState(room);
+    broadcastGameState(room, result.announcements?.join(" | "));
+    return;
+  }
+
+  // callUno 可在任意阶段执行（包括 snatch_window），不受阶段拦截
+  if (event.type === "callUno") {
+    const result = applyCallUno(room.game, event.playerId, event.turnId, event.seq);
+    if (!result.ok) {
+      rejectWith(result.message ?? "UNO 失败", result.code === "INVALID_ACTION" ? "INVALID_ACTION" : "INVALID_CARD");
+      return;
+    }
+    broadcastGameState(room, result.announcements?.join(" | "));
     return;
   }
 
@@ -130,16 +141,6 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
 
   if (room.phase.phase === "snatch_window") {
     rejectWith("抢牌判定阶段只能执行抢牌或跳过抢牌");
-    return;
-  }
-
-  if (event.type === "callUno") {
-    const result = applyCallUno(room.game, event.playerId, event.turnId, event.seq);
-    if (!result.ok) {
-      rejectWith(result.message ?? "UNO 失败", result.code === "INVALID_ACTION" ? "INVALID_ACTION" : "INVALID_CARD");
-      return;
-    }
-    broadcastGameState(room, result.announcements?.join(" | "));
     return;
   }
 

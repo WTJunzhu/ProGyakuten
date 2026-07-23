@@ -750,10 +750,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                 : isMyTurn ? "你的主回合" : `等待 ${gameState.currentPlayerId}`}
           </div>
           <button
-            disabled={!isActionAllowed(allowedActions, "callUno")}
-            onClick={() => wsSend({ type: "callUno", playerId, turnId: gameState.turnId, seq: nextSeq() })}
-          >喊 UNO</button>
-          <button
             disabled={!isActionAllowed(allowedActions, "check_uno")}
             onClick={() => wsSend({ type: "checkUno", playerId })}
           >检查UNO</button>
@@ -857,6 +853,17 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           ))}
         </div>
       </div>
+
+      {/* ── 悬浮喊UNO按钮：手牌=1且本回合未喊UNO时弹出 ── */}
+      {hand.length === 1 && (() => {
+        const me = gameState?.players.find((p) => p.playerId === playerId);
+        return !me?.saidUno;
+      })() && (
+        <button
+          className="floating-uno-btn"
+          onClick={() => wsSend({ type: "callUno", playerId, turnId: gameState!.turnId, seq: nextSeq() })}
+        >喊 UNO!</button>
+      )}
     </div>
   );
 }

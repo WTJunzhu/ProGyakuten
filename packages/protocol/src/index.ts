@@ -17,6 +17,7 @@ export interface PlayerPublicState {
   seat: number;
   handCount: number;
   connected: boolean;
+  saidUno?: boolean;
 }
 
 export type TurnPhase = "turn_main" | "snatch_window" | "post_draw_window";

@@ -169,7 +169,7 @@ export function applyUnoCheck(state: GameStateInternal, checker: PlayerState): s
   const announcements: string[] = [];
   if (vulnerablePlayers.length > 0) {
     for (const player of vulnerablePlayers) {
-      const defaultAnnouncements = [`Player ${player.playerId} was caught not calling UNO and draws 2 cards.`];
+      const defaultAnnouncements = [`玩家 ${checker.playerId} 检查UNO成功，玩家 ${player.playerId} 未喊UNO被罚2张`];
       const hookAnnouncements = applyRuleHooks(state.rules.hooks, (hook) =>
         hook.resolveUnoPenalty?.({ state, player }, defaultAnnouncements)
       );
@@ -181,7 +181,7 @@ export function applyUnoCheck(state: GameStateInternal, checker: PlayerState): s
     return announcements;
   }
 
-  const defaultAnnouncements = [`Player ${checker.playerId} made a false UNO check and draws 2 cards.`];
+  const defaultAnnouncements = [`玩家 ${checker.playerId} 检查UNO失败，被罚2张`];
   const hookAnnouncements = applyRuleHooks(state.rules.hooks, (hook) =>
     hook.resolveUnoPenalty?.({ state, player: checker }, defaultAnnouncements)
   );
@@ -196,7 +196,8 @@ export function toPublicState(state: GameStateInternal): GamePublicState {
     playerId: player.playerId,
     seat: player.seat,
     handCount: player.hand.length,
-    connected: player.connected
+    connected: player.connected,
+    saidUno: player.saidUnoForTurnId === state.turnId
   }));
 
   return {

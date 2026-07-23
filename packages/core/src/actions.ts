@@ -272,7 +272,7 @@ export function applyCallUno(
 
   player.saidUnoForTurnId = state.turnId;
   player.missedUnoPending = false;
-  return { ok: true };
+  return { ok: true, announcements: [`玩家 ${player.playerId} 喊了 UNO！`] };
 }
 
 export function applyCheckUno(state: GameStateInternal, playerId: string): ActionResult {
