@@ -14,6 +14,7 @@ export interface GameRuleConfig {
   initialHandsNumbersOnly: boolean;
   allowWildStartCard: boolean;
   maxHandSize: number;
+  handSizeLimit: number;
   phaseDurations: PhaseDurations;
 }
 

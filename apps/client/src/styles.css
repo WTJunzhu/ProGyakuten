@@ -351,6 +351,52 @@ button:disabled {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   z-index: 20;
   pointer-events: none;
+  transition: none;
+}
+
+/* 爆牌判负时手牌数居中动画 */
+.own-hand-count.burst-center {
+  animation: burstCenterAnim 0.5s ease forwards;
+  z-index: 200;
+}
+
+@keyframes burstCenterAnim {
+  0% {
+    position: absolute;
+    right: 8px;
+    bottom: 6px;
+    font-size: 13px;
+    min-width: 22px;
+    height: 22px;
+    line-height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: var(--accent-color);
+    color: #222;
+    transform: translate(0, 0) scale(1);
+  }
+  40% {
+    transform: translate(0, 0) scale(1.8);
+    background: #e03040;
+    color: #fff;
+  }
+  100% {
+    position: fixed;
+    right: auto;
+    bottom: auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(3);
+    font-size: 40px;
+    min-width: 72px;
+    height: 72px;
+    line-height: 72px;
+    padding: 0 16px;
+    border-radius: 36px;
+    background: #e03040;
+    color: #fff;
+    box-shadow: 0 0 40px rgba(224, 48, 64, 0.6), 0 0 80px rgba(224, 48, 64, 0.3);
+  }
 }
 
 /* ─── Table Center ─── */

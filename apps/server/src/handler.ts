@@ -244,6 +244,11 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith(result.message ?? "摸牌失败");
       return;
     }
+    // 爆牌判负：摸牌后手牌超限，直接结算
+    if (room.game.winnerTeam) {
+      finalizeAction(room, result, `玩家 ${event.playerId} 摸牌后手牌超限爆牌`);
+      return;
+    }
     let playable = isCardPlayable(room.game, result.drawnCard);
     // wild 牌不能单独出，但可以作为 combo 的 wild 牌使用
     if (!playable && result.drawnCard.kind === "wild") {

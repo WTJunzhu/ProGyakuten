@@ -7,6 +7,7 @@ export const defaultRuleConfig: GameRuleConfig = {
   initialHandsNumbersOnly: true,
   allowWildStartCard: false,
   maxHandSize: 50,
+  handSizeLimit: 20,
   phaseDurations: {
     turnMainMs: 30_000,
     snatchWindowMs: 5_000,

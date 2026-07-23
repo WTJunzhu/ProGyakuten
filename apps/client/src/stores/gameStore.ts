@@ -114,6 +114,9 @@ interface GameState {
   focusTarget: FocusTarget | null;
   setFocusTarget: (target: FocusTarget | null) => void;
 
+  // Burst self (自己爆牌时的手牌数居中动画标记)
+  burstSelf: boolean;
+
   // Log
   logLines: string[];
   addLog: (line: string) => void;
@@ -267,6 +270,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   focusTarget: null,
   setFocusTarget: (target) => set({ focusTarget: target }),
 
+  burstSelf: false,
+
   logLines: [],
   addLog: (line) => set((s) => ({ logLines: [`[${new Date().toLocaleTimeString()}] ${line}`, ...s.logLines].slice(0, 100) })),
 
@@ -326,6 +331,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             phase: null,
             allowedActions: [],
             gameOverState: null,
+      focusTarget: null,
+      burstSelf: false,
             chatMessages: []    // 离开房间时清空聊天
           });
           get().clearSession();
@@ -422,6 +429,24 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
           }
 
+          // 1b) 爆牌判负：game.burst hint
+          if (event.presentationHint === "game.burst") {
+            stopBgmImmediately();
+            // 找到爆牌玩家（手牌最多且≥20）
+            const burstPlayer = event.state.players.reduce((worst, p) =>
+              p.handCount > (worst?.handCount ?? 0) ? p : worst, event.state.players[0]);
+            if (burstPlayer) {
+              if (burstPlayer.playerId === myId) {
+                // 自己爆牌：不用聚焦，显示手牌数居中动画
+                set({ burstSelf: true });
+              } else {
+                // 他人：聚焦到爆牌玩家的姓名+手牌区
+                set({ focusTarget: { type: "player", playerId: burstPlayer.playerId, startedAt: Date.now() } });
+                setTimeout(() => set({ focusTarget: null }), 3000);
+              }
+            }
+          }
+
           // 2) 喊UNO：检测 saidUno 从 false → true（其他玩家）
           if (!event.presentationHint) {
             const prevPlayers = prev.gameState?.players ?? [];
@@ -457,6 +482,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           gameOverState: event.state,
           allowedActions: [],
+          burstSelf: false,
+          focusTarget: null,
           view: "game"
         });
         addLog(`游戏结束: ${won ? "我方胜利" : "我方失败"}`);

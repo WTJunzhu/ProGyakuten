@@ -76,6 +76,12 @@ export function drawOne(state: GameStateInternal, player: PlayerState): Card {
     player.hand.shift();
   }
   player.hand.push(card);
+  // 爆牌判负检查：手牌≥handSizeLimit且尚未判定胜负时触发
+  if (player.hand.length >= state.rules.config.handSizeLimit && !state.winnerTeam) {
+    const loserTeam = state.teams.teamA.includes(player.playerId) ? "teamA" : "teamB";
+    state.winnerTeam = loserTeam === "teamA" ? "teamB" : "teamA";
+    state.endReason = "burst";
+  }
   if (player.hand.length !== 1) {
     player.missedUnoPending = false;
     player.saidUno = false;
@@ -150,6 +156,7 @@ export function replenishPlayerHand(state: GameStateInternal, player: PlayerStat
 export function finishPlay(state: GameStateInternal, player: PlayerState, announcements: string[]): ActionResult {
   if (player.hand.length === 0) {
     state.winnerTeam = state.teams.teamA.includes(player.playerId) ? "teamA" : "teamB";
+    state.endReason = "finished";
     return { ok: true, announcements };
   }
 

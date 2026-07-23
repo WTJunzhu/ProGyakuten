@@ -225,6 +225,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const isSpectating = useGameStore((s) => s.isSpectating);
   const spectators = useGameStore((s) => s.spectators);
   const focusTarget = useGameStore((s) => s.focusTarget);
+  const burstSelf = useGameStore((s) => s.burstSelf);
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
@@ -899,7 +900,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
               );
             })}
           </div>
-          <div className="own-hand-count">{hand.length}</div>
+          <div className={`own-hand-count${burstSelf ? " burst-center" : ""}`}>{hand.length}</div>
         </div>
       </div>
       )} {/* end of isSpectating ? ... : player-area */}

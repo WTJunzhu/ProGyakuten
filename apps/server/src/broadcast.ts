@@ -108,7 +108,9 @@ export function broadcastGameState(room: RoomState, message?: string, presentati
 export function finalizeAction(room: RoomState, result: ActionResult, baseMessage: string): string | null {
   const mergedMessage = [baseMessage, ...(result.announcements ?? [])].filter(Boolean).join(" | ");
   if (room.game?.winnerTeam) {
-    // 先广播 statePatch（含 game.finishing hint），让客户端展示聚焦效果
+    // 根据 endReason 选择不同的 presentationHint
+    const hint = room.game.endReason === "burst" ? "game.burst" : "game.finishing";
+    // 先广播 statePatch，让客户端展示聚焦效果
     room.status = "game_over";
     room.phase = undefined;
     room.drawnCardWindow = undefined;
@@ -117,7 +119,7 @@ export function finalizeAction(room: RoomState, result: ActionResult, baseMessag
     for (const playerId of room.players) {
       const conn = playersById.get(playerId);
       if (conn && conn.roomId === room.roomId) {
-        send(conn.ws, buildStateEvent(room, playerId, mergedMessage || undefined, "game.finishing"));
+        send(conn.ws, buildStateEvent(room, playerId, mergedMessage || undefined, hint));
       }
     }
     for (const spectatorId of room.spectators ?? []) {
@@ -132,7 +134,7 @@ export function finalizeAction(room: RoomState, result: ActionResult, baseMessag
           message: mergedMessage || undefined,
           allowedActions: [],
           lastSeq: undefined,
-          presentationHint: "game.finishing"
+          presentationHint: hint
         });
       }
     }

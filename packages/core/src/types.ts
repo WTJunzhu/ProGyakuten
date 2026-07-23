@@ -27,6 +27,7 @@ export interface GameStateInternal {
   players: PlayerState[];
   teams: { teamA: string[]; teamB: string[] };
   winnerTeam?: "teamA" | "teamB";
+  endReason?: "finished" | "burst";
   drawCardStack: number;
   penaltySource: CardKind | null;
   skipConstraint?: {
