@@ -6,30 +6,25 @@ import type { PresentationConfig } from "./types";
  */
 export const PRESENTATION_REGISTRY: Record<string, PresentationConfig> = {
 
-  // ── 牌效音效（客户端自行推断触发）──────────────────────────
+  // ── 牌效视频（客户端自行推断触发）──────────────────────────
   "card.reverse": {
     id: "card.reverse",
-    audio: { src: "/audio/sfx/reverse_igiari.mp3", volume: 0.78 },
-    // 素材就绪后取消注释：GIF 动图
-    // visual: { type: "gif", src: "/animations/card_reverse.gif", position: "corner" },
+    visual: { type: "video", src: "/video/reverse_igiari.mp4", position: "center" },
     priority: 0
   },
   "card.skip": {
     id: "card.skip",
-    audio: { src: "/audio/sfx/skip_matta.mp3", volume: 0.78 },
-    // visual: { type: "gif", src: "/animations/card_skip.gif", position: "corner" },
+    visual: { type: "video", src: "/video/skip_matta.mp4", position: "center" },
     priority: 0
   },
   "card.draw_two": {
     id: "card.draw_two",
-    audio: { src: "/audio/sfx/draw_stack_kurae.mp3", volume: 0.78 },
-    // visual: { type: "gif", src: "/animations/card_draw_two.gif", position: "corner" },
+    visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
     priority: 0
   },
   "card.wild_draw_four": {
     id: "card.wild_draw_four",
-    audio: { src: "/audio/sfx/draw_stack_kurae.mp3", volume: 0.78 },
-    // visual: { type: "gif", src: "/animations/card_wild_draw_four.gif", position: "corner" },
+    visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
     priority: 0
   },
 
