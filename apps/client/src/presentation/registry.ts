@@ -6,25 +6,29 @@ import type { PresentationConfig } from "./types";
  */
 export const PRESENTATION_REGISTRY: Record<string, PresentationConfig> = {
 
-  // ── 牌效视频（客户端自行推断触发）──────────────────────────
+  // ── 牌效音效（客户端自行推断触发）──────────────────────────
   "card.reverse": {
     id: "card.reverse",
-    visual: { type: "video", src: "/video/reverse_igiari.mp4", position: "center" },
+    audio: { src: "/audio/sfx/reverse_igiari.mp3", volume: 0.78 },
+    // visual: { type: "video", src: "/video/reverse_igiari.mp4", position: "center" },
     priority: 0
   },
   "card.skip": {
     id: "card.skip",
-    visual: { type: "video", src: "/video/skip_matta.mp4", position: "center" },
+    audio: { src: "/audio/sfx/skip_matta.mp3", volume: 0.78 },
+    // visual: { type: "video", src: "/video/skip_matta.mp4", position: "center" },
     priority: 0
   },
   "card.draw_two": {
     id: "card.draw_two",
-    visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
+    audio: { src: "/audio/sfx/draw_stack_kurae.mp3", volume: 0.78 },
+    // visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
     priority: 0
   },
   "card.wild_draw_four": {
     id: "card.wild_draw_four",
-    visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
+    audio: { src: "/audio/sfx/draw_stack_kurae.mp3", volume: 0.78 },
+    // visual: { type: "video", src: "/video/draw_stack_kurae.mp4", position: "center" },
     priority: 0
   },
 
