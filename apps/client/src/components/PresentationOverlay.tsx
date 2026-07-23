@@ -64,13 +64,31 @@ export function PresentationOverlay() {
       )}
       {visual.type === "video" && (
         <video
+          ref={(el) => {
+            // 确保视频元素在 DOM 挂载后有明确尺寸再开始播放
+            if (el) {
+              el.style.setProperty("display", "block");
+              if (!visual.width && !visual.height) {
+                el.style.setProperty("width", "100%");
+                el.style.setProperty("height", "auto");
+              }
+            }
+          }}
           src={visual.src}
           autoPlay
           playsInline
           loop={visual.loop ?? false}
           className="presentation-visual"
-          style={{ width: visual.width, height: visual.height }}
+          style={{
+            width: visual.width ?? "auto",
+            height: visual.height ?? "auto",
+          }}
           onEnded={() => dismiss()}
+          onLoadedMetadata={(e) => {
+            // 元数据加载后确保 video 可见
+            const v = e.currentTarget;
+            v.style.setProperty("visibility", "visible");
+          }}
         />
       )}
     </div>

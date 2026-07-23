@@ -1817,10 +1817,16 @@ button:disabled {
 }
 
 .presentation-visual {
+  display: block;
+  width: auto;
+  height: auto;
+  min-width: 160px;
+  min-height: 90px;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   border-radius: 8px;
+  visibility: visible;
 }
 
 /* ═══════════════════════════════════════════════════
