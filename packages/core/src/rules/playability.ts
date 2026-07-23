@@ -50,7 +50,8 @@ export function isComboPlayable(state: GameStateInternal, card: Card): boolean {
 
 export function isExactSnatchMatch(state: GameStateInternal, card: Card): boolean {
   const top = state.discardPile[state.discardPile.length - 1];
-  if (card.color !== top.color || card.kind !== top.kind) return false;
+  if (card.kind !== top.kind) return false;
+  if (top.kind !== "wild_draw_four" && card.color !== top.color) return false;
   if (card.kind === "number" && top.kind === "number") {
     return card.value === top.value;
   }
@@ -61,7 +62,9 @@ export function isCardSnatchable(state: GameStateInternal, card: Card): boolean 
   if (!state.rules.config.allowSnatch) return false;
   const top = state.discardPile[state.discardPile.length - 1];
 
-  const isColorMatch = card.color === top.color;
+  // wild_draw_four in hand always has color="wild", but the top card has the declared color;
+  // skip color check for wild_draw_four since kind match is sufficient.
+  const isColorMatch = top.kind === "wild_draw_four" || card.color === top.color;
   const isKindMatch = card.kind === top.kind;
   const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
   const defaultResult = isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
@@ -139,7 +142,7 @@ export function isCardSnatchableLite(params: {
   const { card, topCard } = params;
   const top = topCard;
 
-  const isColorMatch = card.color === top.color;
+  const isColorMatch = top.kind === "wild_draw_four" || card.color === top.color;
   const isKindMatch = card.kind === top.kind;
   const isValueMatch = card.kind === "number" && top.kind === "number" && card.value === top.value;
   return isColorMatch && isKindMatch && (card.kind !== "number" || isValueMatch);
