@@ -90,7 +90,7 @@ function getDisabledReason(
   }
   // turn_main 阶段
   if (!isActionAllowed(allowed, "play")) return "非你的回合";
-  if (state.drawCardStack > 0) return "请先承受罚摸";
+  if (state.drawCardStack > 0) return "请先应对加牌";
   if (card.kind === "wild" || card.kind === "wild_draw_four") {
     if (!canStartWildCombo(card, state, allowed, playerId, phase, playableDrawnCardId)) return "Wild牌需组合出牌";
   }
