@@ -69,10 +69,10 @@ function getPhaseSubtitle(phase: string, actingPlayerId: string, sourcePlayerId?
   return `${actingPlayerId} 正在判断是否打出刚摸到的牌`;
 }
 
-// Phase duration in ms (matches server constants)
+// Phase duration in ms (matches server constants in apps/server/src/types.ts)
 function phaseDurationMs(phase: string): number {
   if (phase === "turn_main") return 30_000;
-  if (phase === "snatch_window") return 5_000;
+  if (phase === "snatch_window") return 30_000;
   if (phase === "post_draw_window") return 5_000;
   return 0;
 }
@@ -266,7 +266,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
   const phaseBarRef = useRef<HTMLDivElement>(null);
-  const phaseStartRef = useRef<number>(0);
   const handContainerRef = useRef<HTMLDivElement>(null);
   const tableCenterRef = useRef<HTMLDivElement>(null);
   const gameViewRef = useRef<HTMLDivElement>(null);
@@ -285,7 +284,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   // Phase timer ticker + progress bar
   useEffect(() => {
-    if (phase) phaseStartRef.current = Date.now() - (phase.endsAt - phaseDurationMs(phase.phase));
     const interval = setInterval(() => {
       if (phaseTimeRef.current && phase) {
         const remain = Math.max(0, phase.endsAt - Date.now());
@@ -300,7 +298,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       }
     }, 100);
     return () => clearInterval(interval);
-  }, [phase?.phase]); // re-run when phase type changes
+  }, [phase]); // re-run when phase object changes (new phase instance)
 
   // ── Focus zoom effect ──────────────────────────────────────
   const [focusStyle, setFocusStyle] = useState<React.CSSProperties>({});
