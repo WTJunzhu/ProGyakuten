@@ -116,8 +116,10 @@ function executeMainDecision(
     fallbackDraw(room, playerId, seq);
 
   } else if (decision.type === "pass") {
+    const penaltyCount = room.game!.drawCardStack;
     const result = applyPassTurn(room.game, playerId, room.game.turnId, seq);
     if (!result.ok) return;
+    room.pendingDrawEvents.push({ playerId, count: penaltyCount, drawnCardIds: [] });
     const msg = finalizeAction(room, result, `AI ${playerId} 承受罚摸`);
     if (room.status === "in_game") startMainTurn(room, msg ?? undefined);
 
@@ -130,6 +132,7 @@ function fallbackDraw(room: RoomState, playerId: string, seq: number): void {
   if (!room.game) return;
   const result = applyDrawCard(room.game, playerId, room.game.turnId, seq);
   if (!result.ok || !result.drawnCard) return;
+  room.pendingDrawEvents.push({ playerId, count: 1, drawnCardIds: [result.drawnCard.id] });
   const playable = isCardPlayable(room.game, result.drawnCard);
   startPostDrawWindow(room, playerId, result.drawnCard.id, playable, `AI ${playerId} 摸牌`);
 }

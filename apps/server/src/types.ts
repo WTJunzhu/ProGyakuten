@@ -40,6 +40,8 @@ export interface RoomState {
   aiPlayers: string[];
   /** 正在观战的玩家 ID 列表（不在 players 里） */
   spectators: string[];
+  /** 待广播的摸牌事件（每帧广播后清空） */
+  pendingDrawEvents: Array<{ playerId: string; count: number; drawnCardIds: string[] }>;
 }
 
 export const PORT = Number(process.env.PORT ?? "3001");

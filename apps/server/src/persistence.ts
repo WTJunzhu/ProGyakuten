@@ -171,7 +171,8 @@ export class SqlitePersistence implements PersistenceLayer {
       teams,
       phaseToken: 0,
       aiPlayers: [],
-      spectators: []
+      spectators: [],
+      pendingDrawEvents: []
     };
   }
 

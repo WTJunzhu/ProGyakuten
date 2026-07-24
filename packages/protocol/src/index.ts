@@ -262,6 +262,12 @@ export interface RoomSnapshotEvent {
   spectators?: SpectatorInfo[];
 }
 
+export interface DrawEventInfo {
+  playerId: string;
+  count: number;
+  cards?: Card[];  // only visible to teammates; undefined for enemies
+}
+
 export interface GameViewEventBase {
   state: GamePublicState;
   phase: TurnPhaseInfo;
@@ -273,6 +279,8 @@ export interface GameViewEventBase {
   playableDrawnCardId?: string;
   /** 客户端演出系统的触发键，对应 PresentationRegistry 中的 id */
   presentationHint?: string;
+  /** 摸牌事件列表，用于飞行动画 */
+  drawEvents?: DrawEventInfo[];
 }
 
 export interface GameStartEvent extends GameViewEventBase {

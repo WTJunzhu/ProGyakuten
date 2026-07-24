@@ -63,6 +63,15 @@ export function buildStateEvent(room: RoomState, playerId: string, message?: str
   if (message === "已恢复连接") {
     console.log(`[buildStateEvent] Reconnect for ${playerId}: hand=${hand.length}, allowedActions=${JSON.stringify(allowedActions)}, phase=${room.phase?.phase}, currentPlayerIndex=${room.game!.currentPlayerIndex}, turnId=${room.game!.turnId}`);
   }
+  // Build drawEvents for this player (show cards for teammates, hide for enemies)
+  const drawEvents = room.pendingDrawEvents.map(de => {
+    const isTeammate = getPlayerTeam(room, de.playerId) === getPlayerTeam(room, playerId);
+    return {
+      playerId: de.playerId,
+      count: de.count,
+      cards: isTeammate ? getPlayerHand(room.game!, de.playerId).slice(-de.count) : undefined
+    };
+  });
   return {
     type: "statePatch",
     state: toPublicState(room.game!),
@@ -76,7 +85,8 @@ export function buildStateEvent(room: RoomState, playerId: string, message?: str
       room.drawnCardWindow?.playerId === playerId && room.drawnCardWindow.playable
         ? room.drawnCardWindow.cardId
         : undefined,
-    presentationHint
+    presentationHint,
+    drawEvents: drawEvents.length > 0 ? drawEvents : undefined
   };
 }
 
@@ -103,6 +113,8 @@ export function broadcastGameState(room: RoomState, message?: string, presentati
       presentationHint
     });
   }
+  // 广播后清空摸牌事件
+  room.pendingDrawEvents = [];
 }
 
 export function finalizeAction(room: RoomState, result: ActionResult, baseMessage: string): string | null {

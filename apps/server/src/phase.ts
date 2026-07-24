@@ -103,7 +103,9 @@ function handlePhaseTimeout(roomId: string, phaseToken: number): void {
     const seq = player.lastSeq + 1;
 
     if (room.game.drawCardStack > 0) {
+      const penaltyCount = room.game.drawCardStack;
       const result = applyPassTurn(room.game, playerId, room.game.turnId, seq);
+      room.pendingDrawEvents.push({ playerId, count: penaltyCount, drawnCardIds: [] });
       const message = finalizeAction(room, result, `玩家 ${playerId} 超时，自动结算罚摸`);
       if (room.status === "in_game") startMainTurn(room, message ?? undefined);
       return;
@@ -111,6 +113,7 @@ function handlePhaseTimeout(roomId: string, phaseToken: number): void {
 
     const drawResult = applyDrawCard(room.game, playerId, room.game.turnId, seq);
     if (!drawResult.ok || !drawResult.drawnCard) return;
+    room.pendingDrawEvents.push({ playerId, count: 1, drawnCardIds: [drawResult.drawnCard.id] });
     const playable = isCardPlayable(room.game, drawResult.drawnCard);
     startPostDrawWindow(room, playerId, drawResult.drawnCard.id, playable, `玩家 ${playerId} 超时，自动摸牌`);
     return;

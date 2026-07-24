@@ -28,6 +28,7 @@ async function restoreRooms(): Promise<void> {
   for (const room of rooms) {
     room.aiPlayers = room.aiPlayers ?? [];   // 兼容旧快照
     room.spectators = room.spectators ?? []; // 兼容旧快照
+    room.pendingDrawEvents = room.pendingDrawEvents ?? []; // 兼容旧快照
     if (room.status === "character_selection" || room.status === "game_intro") {
       room.status = "lobby";
       room.game = undefined;

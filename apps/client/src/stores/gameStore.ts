@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Card,
+  DrawEventInfo,
   GamePublicState,
   TurnPhaseInfo,
   AllowedAction,
@@ -32,6 +33,8 @@ export interface FocusTarget {
 const SESSIONS_KEY = "new_uno_sessions";
 const LAST_PLAYER_KEY = "new_uno_last_player";
 const TAB_PLAYER_KEY = "new_uno_tab_player"; // sessionStorage: per-tab player identity
+
+let drawAnimIdCounter = 0;
 
 interface SavedSession {
   playerId: string;
@@ -132,6 +135,15 @@ interface GameState {
   // Spectating
   isSpectating: boolean;
   spectators: SpectatorInfo[];
+
+  // Draw animation queue
+  drawAnims: Array<{
+    id: number;
+    playerId: string;
+    count: number;
+    currentIndex: number;
+    cards?: Card[];  // teammate: card faces; enemy: undefined
+  }>;
 
   nextSeq: () => number;
   reorderHand: (fromIndex: number, toIndex: number) => void;
@@ -283,6 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   isSpectating: false,
   spectators: [],
+  drawAnims: [],
 
   nextSeq: () => {
     const next = get().lastSeq + 1;
@@ -372,6 +385,16 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       case "statePatch": {
         const prev = get();
+        // Create draw animations from drawEvents
+        const newDrawAnims = (event.drawEvents ?? [])
+          .filter(de => de.playerId !== prev.playerId)  // skip own draws
+          .map(de => ({
+            id: ++drawAnimIdCounter,
+            playerId: de.playerId,
+            count: de.count,
+            currentIndex: 0,
+            cards: de.cards
+          }));
         set({
           gameState: event.state,
           hand: event.hand,
@@ -381,7 +404,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           lastSeq: typeof event.lastSeq === "number" ? event.lastSeq : prev.lastSeq,
           playableDrawnCardId: event.playableDrawnCardId,
           message: event.message,
-          view: "game"
+          view: "game",
+          drawAnims: [...prev.drawAnims, ...newDrawAnims]
         });
         if (prev.pendingWildCard && !event.hand.some((c) => c.id === prev.pendingWildCard!.id)) {
           set({ pendingWildCard: null, pendingWildColor: null, pendingWildAction: null });
@@ -625,7 +649,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       characterAssignments: {},
       chatMessages: [],
       isSpectating: false,
-      spectators: []
+      spectators: [],
+      drawAnims: []
     });
     get().clearSession();
   }

@@ -35,7 +35,8 @@ export class RoomManager {
       teams: { teamA: [playerId], teamB: [] },
       phaseToken: 0,
       aiPlayers: [],
-      spectators: []
+      spectators: [],
+      pendingDrawEvents: []
     };
     this.rooms.set(roomId, room);
     return room;

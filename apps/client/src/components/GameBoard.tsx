@@ -261,6 +261,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const spectators = useGameStore((s) => s.spectators);
   const focusTarget = useGameStore((s) => s.focusTarget);
   const burstSelf = useGameStore((s) => s.burstSelf);
+  const drawAnims = useGameStore((s) => s.drawAnims);
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
@@ -279,6 +280,90 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
   const [dragNearZone, setDragNearZone] = useState<"hand" | "play" | null>(null);
   const [teammateView, setTeammateView] = useState<string | null>(null); // playerId of teammate being viewed
+
+  // ─── Draw animation: flying cards ───
+  const [flyingCards, setFlyingCards] = useState<Array<{
+    id: number;         // unique per card
+    animId: number;      // parent drawAnim id
+    index: number;       // which card in the anim (0-based)
+    playerId: string;
+    card?: Card;         // face card for teammates
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    started: boolean;    // true = transition to endX/endY started
+  }>>([]);
+
+  // Spawn flying cards from drawAnims queue
+  useEffect(() => {
+    if (drawAnims.length === 0) return;
+    const deckEl = tableCenterRef.current?.querySelector(".deck") as HTMLElement | null;
+    const deckRect = deckEl?.getBoundingClientRect();
+    const startX = deckRect ? deckRect.left + deckRect.width / 2 - 20 : window.innerWidth / 2 - 20;
+    const startY = deckRect ? deckRect.top + deckRect.height / 2 - 30 : window.innerHeight / 2 - 30;
+
+    const newFlying: typeof flyingCards = [];
+    let flyingIdCounter = 0;
+    for (const anim of drawAnims) {
+      // Find the opponent element for end position
+      const opponentEls = document.querySelectorAll(`[data-player-id="${anim.playerId}"]`);
+      const oppEl = opponentEls[0] as HTMLElement | null;
+      const oppRect = oppEl?.getBoundingClientRect();
+      const endX = oppRect ? oppRect.left + oppRect.width / 2 - 20 : startX;
+      const endY = oppRect ? oppRect.top + oppRect.height / 2 - 30 : startY;
+
+      for (let i = 0; i < anim.count; i++) {
+        newFlying.push({
+          id: ++flyingIdCounter,
+          animId: anim.id,
+          index: i,
+          playerId: anim.playerId,
+          card: anim.cards?.[i],
+          startX,
+          startY,
+          endX,
+          endY,
+          started: false
+        });
+      }
+    }
+    setFlyingCards(prev => [...prev, ...newFlying]);
+    // Clear the drawAnims queue after spawning
+    useGameStore.setState({ drawAnims: [] });
+  }, [drawAnims]);
+
+  // Stagger: start each flying card 10ms apart, then remove after flight
+  useEffect(() => {
+    if (flyingCards.length === 0) return;
+    const notStarted = flyingCards.filter(fc => !fc.started);
+    if (notStarted.length === 0) return;
+
+    // Start the first not-started card immediately
+    const timer = setTimeout(() => {
+      setFlyingCards(prev => {
+        const idx = prev.findIndex(fc => !fc.started);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx], started: true };
+        return next;
+      });
+    }, 10);
+    return () => clearTimeout(timer);
+  }, [flyingCards]);
+
+  // Remove flying cards after animation completes (0.4s after started)
+  useEffect(() => {
+    const startedCards = flyingCards.filter(fc => fc.started);
+    if (startedCards.length === 0) return;
+
+    // Find the card that started most recently and remove all completed ones
+    const FLIGHT_MS = 400;
+    const timer = setTimeout(() => {
+      setFlyingCards(prev => prev.filter(fc => !fc.started));
+    }, FLIGHT_MS + 50);
+    return () => clearTimeout(timer);
+  }, [flyingCards.filter(fc => fc.started).length]);
 
   // Phase timer ticker + progress bar
   useEffect(() => {
@@ -748,6 +833,34 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           </div>
         </div>
       )}
+
+      {/* Draw animation: flying cards */}
+      {flyingCards.map(fc => (
+        <div
+          key={fc.id}
+          className={`draw-anim-card${fc.card ? ` card ${fc.card.color}` : " card-back"}`}
+          style={{
+            position: "fixed",
+            left: fc.started ? fc.endX : fc.startX,
+            top: fc.started ? fc.endY : fc.startY,
+            width: 40,
+            height: 58,
+            zIndex: 900,
+            pointerEvents: "none",
+            transition: fc.started ? "left 0.4s ease-out, top 0.4s ease-out, opacity 0.4s ease-out" : "none",
+            opacity: fc.started ? 0.6 : 0.9,
+            fontSize: fc.card ? undefined : 10,
+          }}
+        >
+          {fc.card ? (
+            <>
+              <span className="corner tl" style={{ fontSize: 7 }}>{cardCornerText(fc.card)}</span>
+              <span className="card-center" style={{ fontSize: 11 }}>{cardFace(fc.card)}</span>
+              <span className="corner br" style={{ fontSize: 7 }}>{cardCornerText(fc.card)}</span>
+            </>
+          ) : null}
+        </div>
+      ))}
 
       {/* Row 1: Opponents */}
       <div className="opponents-area">

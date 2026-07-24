@@ -257,6 +257,8 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
         playable = true;
       }
     }
+    // 记录摸牌事件用于飞行动画
+    room.pendingDrawEvents.push({ playerId: event.playerId, count: 1, drawnCardIds: [result.drawnCard.id] });
     startPostDrawWindow(room, event.playerId, result.drawnCard.id, playable, `玩家 ${event.playerId} 摸了一张牌`);
     return;
   }
@@ -266,11 +268,14 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith("当前不能直接跳过，请先摸牌");
       return;
     }
+    const penaltyCount = room.game.drawCardStack;
     const result = applyPassTurn(room.game, event.playerId, event.turnId, event.seq);
     if (!result.ok) {
       rejectWith(result.message ?? "过牌失败");
       return;
     }
+    // 记录罚摸事件用于飞行动画
+    room.pendingDrawEvents.push({ playerId: event.playerId, count: penaltyCount, drawnCardIds: [] });
     const message = finalizeAction(room, result, `玩家 ${event.playerId} 选择承受罚摸`);
     if (room.status === "in_game") startMainTurn(room, message ?? undefined);
   }
