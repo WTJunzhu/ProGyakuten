@@ -68,7 +68,7 @@ export function ColorModal() {
   const title =
     pendingWildAction === "skill_recolor"
       ? "请选择变换后的颜色（七色染刃）"
-      : "请选择变色后的颜色";
+      : "请选择变色后的颜色（点击空白区域取消）";
 
   return (
     <div className="modal-overlay" onClick={handleBackdrop}>
