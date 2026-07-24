@@ -232,6 +232,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const handContainerRef = useRef<HTMLDivElement>(null);
   const tableCenterRef = useRef<HTMLDivElement>(null);
   const gameViewRef = useRef<HTMLDivElement>(null);
+  const prevTopCardIdRef = useRef<string | null>(null);
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
@@ -310,6 +311,12 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   }, []);
 
   if (!gameState) return <div style={{ padding: 40, textAlign: "center" }}>加载中...</div>;
+
+  // 检测弃牌堆顶牌是否为 combo 出牌（previousTopCard 不是旧 topCard → 两张都是新牌）
+  const isComboArrival = !!gameState.previousTopCard && gameState.previousTopCard.id !== prevTopCardIdRef.current;
+  if (gameState.topCard) {
+    prevTopCardIdRef.current = gameState.topCard.id;
+  }
 
   const isMyTurn = gameState.currentPlayerId === playerId;
   const myTeam = gameState.teams.teamA.includes(playerId) ? "teamA" : "teamB";
@@ -763,11 +770,17 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           <div className="pile-caption">弃牌堆</div>
           <div className="pile-stack">
             {gameState.previousTopCard && (
-              <div className={`discard-shadow ${gameState.previousTopCard.color}`}>
+              <div
+                key={gameState.previousTopCard.id}
+                className={`discard-shadow ${gameState.previousTopCard.color}${isComboArrival ? " shadow-pop" : " shadow-slide"}`}
+              >
                 <div style={{ fontSize: 24 }}>{cardFace(gameState.previousTopCard)}</div>
               </div>
             )}
-            <div className={`discard ${gameState.topCard.color}`}>
+            <div
+              key={gameState.topCard.id}
+              className={`discard ${gameState.topCard.color} discard-pop`}
+            >
               <div style={{ fontSize: 32 }}>{cardFace(gameState.topCard)}</div>
               {gameState.drawCardStack > 0 && (
                 <div className="penalty-count">+{gameState.drawCardStack}</div>
