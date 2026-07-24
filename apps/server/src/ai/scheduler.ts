@@ -71,14 +71,19 @@ function handleAiMainTurn(roomId: string, token: number): void {
   const player = room.game.players[room.game.currentPlayerIndex];
   let seq = player.lastSeq + 1;
 
-  // 手牌剩 2 张且即将出牌 → 先喊 UNO
-  if (player.hand.length === 2) {
-    const unoResult = applyCallUno(room.game, playerId, room.game.turnId, seq);
-    if (unoResult.ok) seq++;
-  }
+  // 记住出牌前手牌数，出牌后若变1张再喊UNO
+  const handBefore = player.hand.length;
 
   const decision = decideMainTurn(room.game, playerId);
   executeMainDecision(room, playerId, seq, decision);
+
+  // 出牌后手牌变1张 → 喊UNO（与人类玩家体验一致：出牌后才喊）
+  if (handBefore === 2 && player.hand.length === 1 && !player.saidUno) {
+    const unoResult = applyCallUno(room.game, playerId, room.game.turnId, player.lastSeq + 1);
+    if (unoResult.ok) {
+      finalizeAction(room, unoResult, `AI ${playerId} 喊了 UNO！`);
+    }
+  }
 }
 
 function executeMainDecision(
@@ -214,15 +219,11 @@ function handleAiPostDraw(roomId: string, token: number): void {
 
   const player = room.game.players[room.game.currentPlayerIndex];
   let seq = player.lastSeq + 1;
+  const handBefore = player.hand.length;
 
   const decision = decidePostDraw(room.game, playerId, room.drawnCardWindow.cardId);
 
   if (decision.type === "playDrawn" || decision.type === "play") {
-    // 摸到可打的牌：检查是否需要喊UNO
-    if (player.hand.length === 2) {
-      const unoResult = applyCallUno(room.game, playerId, room.game.turnId, seq);
-      if (unoResult.ok) seq++;
-    }
     const declaredColor =
       decision.type === "play" ? (decision as { declaredColor?: string }).declaredColor as any : undefined;
     const result = applyPlayCard(
@@ -234,13 +235,13 @@ function handleAiPostDraw(roomId: string, token: number): void {
       return;
     }
     const msg = finalizeAction(room, result, `AI ${playerId} 打出刚摸到的牌`);
+    // 出牌后手牌变1张 → 喊UNO
+    if (handBefore === 2 && player.hand.length === 1 && !player.saidUno) {
+      const unoResult = applyCallUno(room.game, playerId, room.game.turnId, player.lastSeq + 1);
+      if (unoResult.ok) finalizeAction(room, unoResult, `AI ${playerId} 喊了 UNO！`);
+    }
     if (room.status === "in_game") startSnatchWindow(room, playerId, msg ?? undefined);
   } else if (decision.type === "comboPlay") {
-    // 摸到 wild 牌：组合出牌
-    if (player.hand.length === 2) {
-      const unoResult = applyCallUno(room.game, playerId, room.game.turnId, seq);
-      if (unoResult.ok) seq++;
-    }
     const result = applyComboPlay(
       room.game, playerId, room.game.turnId, seq,
       decision.wildCardId, decision.targetCardId, decision.declaredColor
@@ -250,6 +251,11 @@ function handleAiPostDraw(roomId: string, token: number): void {
       return;
     }
     const msg = finalizeAction(room, result, `AI ${playerId} 使用刚摸到的 Wild 组合出牌`);
+    // 出牌后手牌变1张 → 喊UNO
+    if (handBefore === 2 && player.hand.length === 1 && !player.saidUno) {
+      const unoResult = applyCallUno(room.game, playerId, room.game.turnId, player.lastSeq + 1);
+      if (unoResult.ok) finalizeAction(room, unoResult, `AI ${playerId} 喊了 UNO！`);
+    }
     if (room.status === "in_game") startSnatchWindow(room, playerId, msg ?? undefined);
   } else {
     doPass(room, playerId, seq);
