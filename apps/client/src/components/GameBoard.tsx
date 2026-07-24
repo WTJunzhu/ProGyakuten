@@ -69,6 +69,14 @@ function getPhaseSubtitle(phase: string, actingPlayerId: string, sourcePlayerId?
   return `${actingPlayerId} 正在判断是否打出刚摸到的牌`;
 }
 
+// Phase duration in ms (matches server constants)
+function phaseDurationMs(phase: string): number {
+  if (phase === "turn_main") return 30_000;
+  if (phase === "snatch_window") return 5_000;
+  if (phase === "post_draw_window") return 5_000;
+  return 0;
+}
+
 function getDisabledReason(
   card: Card,
   state: GameState,
@@ -257,6 +265,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   const logRef = useRef<HTMLDivElement>(null);
   const phaseTimeRef = useRef<HTMLDivElement>(null);
+  const phaseBarRef = useRef<HTMLDivElement>(null);
+  const phaseStartRef = useRef<number>(0);
   const handContainerRef = useRef<HTMLDivElement>(null);
   const tableCenterRef = useRef<HTMLDivElement>(null);
   const gameViewRef = useRef<HTMLDivElement>(null);
@@ -273,16 +283,24 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const teammateExpandRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Phase timer ticker
+  // Phase timer ticker + progress bar
   useEffect(() => {
+    if (phase) phaseStartRef.current = Date.now() - (phase.endsAt - phaseDurationMs(phase.phase));
     const interval = setInterval(() => {
       if (phaseTimeRef.current && phase) {
         const remain = Math.max(0, phase.endsAt - Date.now());
         phaseTimeRef.current.textContent = `${(remain / 1000).toFixed(1)}s`;
       }
+      if (phaseBarRef.current && phase) {
+        const duration = phaseDurationMs(phase.phase);
+        const remain = Math.max(0, phase.endsAt - Date.now());
+        const pct = duration > 0 ? Math.min(100, (remain / duration) * 100) : 0;
+        phaseBarRef.current.style.width = `${pct}%`;
+        phaseBarRef.current.classList.toggle("phase-bar-danger", remain < 3000);
+      }
     }, 100);
     return () => clearInterval(interval);
-  }, [phase]);
+  }, [phase?.phase]); // re-run when phase type changes
 
   // ── Focus zoom effect ──────────────────────────────────────
   const [focusStyle, setFocusStyle] = useState<React.CSSProperties>({});
@@ -845,6 +863,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           <div className={`direction-indicator ${gameState.direction === 1 ? "cw" : "ccw"}`}>
             {gameState.direction === 1 ? "↻" : "↺"}
           </div>
+          {phase && <div className="phase-bar" ref={phaseBarRef} style={{ width: "100%" }} />}
         </div>
 
         <div className="pile-column">
