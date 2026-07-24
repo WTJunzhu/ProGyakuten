@@ -69,6 +69,34 @@ function getPhaseSubtitle(phase: string, actingPlayerId: string, sourcePlayerId?
   return `${actingPlayerId} 正在判断是否打出刚摸到的牌`;
 }
 
+function getDisabledReason(
+  card: Card,
+  state: GameState,
+  allowed: AllowedAction[],
+  playerId: string,
+  phase?: string,
+  playableDrawnCardId?: string
+): string {
+  // 非 combo 选牌模式下，判断不能出的原因
+  if (phase === "snatch_window") {
+    // 抢牌阶段：不是抢牌目标
+    if (!isCardSnatchable(card, state, allowed, phase)) return "该牌不可抢";
+    return "非你的抢牌时机";
+  }
+  if (phase === "post_draw_window") {
+    // 摸牌后判定
+    if (card.id !== playableDrawnCardId) return "只能打出刚摸到的牌";
+    return "该牌无法打出";
+  }
+  // turn_main 阶段
+  if (!isActionAllowed(allowed, "play")) return "非你的回合";
+  if (state.drawCardStack > 0) return "请先承受罚摸";
+  if (card.kind === "wild" || card.kind === "wild_draw_four") {
+    if (!canStartWildCombo(card, state, allowed, playerId, phase, playableDrawnCardId)) return "Wild牌需组合出牌";
+  }
+  return "颜色或数字不匹配";
+}
+
 // ─── CharacterPanel: portrait + hover tooltip + click to activate ───
 function CharacterPanel({
   character,
@@ -237,6 +265,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const prevOpponentHandCountsRef = useRef<Record<string, number>>({});
   const [ownCountPulse, setOwnCountPulse] = useState(false);
   const [opponentPulseIds, setOpponentPulseIds] = useState<Set<string>>(new Set());
+  const [cardHint, setCardHint] = useState<{ cardId: string; text: string } | null>(null);
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
@@ -478,6 +507,11 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     if (canSnatch) { handleSnatch(card); return; }
     if (canCombo) { handleComboStart(card); return; }
     if (canPlay) { playCard(card); return; }
+
+    // ── 点击了不可操作的牌 → 显示原因 ──
+    const reason = getDisabledReason(card, gameState, allowedActions, playerId, phase?.phase, playableDrawnCardId);
+    setCardHint({ cardId: card.id, text: reason });
+    setTimeout(() => setCardHint((h) => h?.cardId === card.id ? null : h), 750);
   };
 
   // ─── Drag: zone detection ───
@@ -953,6 +987,9 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                   <span className="corner tl">{cardCornerText(card)}</span>
                   <span className="card-center">{cardFace(card)}</span>
                   <span className="corner br">{cardCornerText(card)}</span>
+                  {cardHint?.cardId === card.id && (
+                    <div className="card-hint">{cardHint.text}</div>
+                  )}
                 </div>
               );
             })}
