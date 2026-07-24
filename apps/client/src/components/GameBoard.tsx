@@ -719,6 +719,11 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   return (
     <div className="game-view" ref={gameViewRef} style={{ display: "grid", ...focusStyle }}>
+      {/* Portrait orientation hint for mobile */}
+      <div className="rotate-hint">
+        <div className="rotate-hint-icon">📱</div>
+        <div className="rotate-hint-text">请旋转设备至横屏模式</div>
+      </div>
       {/* Settlement overlay */}
       {gameOverState && (
         <div className={`settlement-overlay ${gameOverState.winnerTeam === myTeam ? "result-win" : "result-lose"}`} style={{ display: "flex" }}>
@@ -813,12 +818,14 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             onMouseLeave={() => setTeammateView(null)}
             onTouchEnd={(e) => {
               // Close when touching outside the hand area
-              if (!(e.target as HTMLElement).closest('.teammate-viewer-hand')) {
+              if (!(e.target as HTMLElement).closest('.teammate-viewer-hand') && !(e.target as HTMLElement).closest('.teammate-viewer-close')) {
                 setTeammateView(null);
               }
             }}
           >
-            <div className="teammate-viewer-title">{teammateView} 的手牌</div>
+            <div className="teammate-viewer-title">{teammateView} 的手牌
+              <button className="teammate-viewer-close" onClick={() => setTeammateView(null)}>✕</button>
+            </div>
             <div className="teammate-viewer-hand">
               {cards.map((c, i) => (
                 <div
