@@ -336,6 +336,16 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     }
   }, [gameState?.players, playerId]);
 
+  // ── Log auto-scroll (only when user is near bottom) ────────
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    if (nearBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [logLines]);
+
   // Cleanup long press timer
   useEffect(() => {
     return () => {
@@ -705,6 +715,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             >
               <div style={{ fontWeight: 700 }}>
                 {p.playerId}{isTeammate ? " (队友)" : ""}
+                {!p.connected && <span className="offline-badge">已离线</span>}
               </div>
               {characterAssignments[p.playerId] && (
                 <CharacterPanel

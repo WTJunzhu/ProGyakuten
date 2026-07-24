@@ -39,7 +39,7 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
   if (event.type === "checkUno") {
     const result = applyCheckUno(room.game, event.playerId);
     if (!result.ok) {
-      rejectWith(result.message ?? "UNO check failed");
+      rejectWith(result.message ?? "UNO检查失败");
       return;
     }
     broadcastGameState(room, result.announcements?.join(" | "));

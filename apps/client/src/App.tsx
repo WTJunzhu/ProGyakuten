@@ -24,7 +24,7 @@ export default function App() {
   const setView = useGameStore((s) => s.setView);
   const wsRef = useRef<GameWebSocket | null>(null);
   const [wsReady, setWsReady] = useState(false);
-  const [logCollapsed, setLogCollapsed] = useState(false);
+  const [logCollapsed, setLogCollapsed] = useState(true);
 
   const wsSend = useCallback((e: unknown) => {
     wsRef.current?.send(e as never);

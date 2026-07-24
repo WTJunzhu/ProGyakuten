@@ -242,7 +242,7 @@ export function applyPassTurn(
     for (let i = 0; i < count; i += 1) {
       drawOne(state, player);
     }
-    announcements.push(`Player ${player.playerId} draws ${count} penalty cards.`);
+    announcements.push(`玩家 ${player.playerId} 承受 ${count} 张罚牌`);
     state.drawCardStack = 0;
     state.penaltySource = null;
   }
@@ -267,7 +267,7 @@ export function applyCallUno(
   const canRecoverMissedUno = player.hand.length === 1 && !!player.missedUnoPending;
 
   if (!canCallBeforePlay && !canRecoverMissedUno) {
-    return { ok: false, code: "INVALID_ACTION", message: "UNO cannot be called right now" };
+    return { ok: false, code: "INVALID_ACTION", message: "当前不能喊UNO" };
   }
 
   player.saidUno = true;
