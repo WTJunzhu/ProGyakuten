@@ -610,6 +610,34 @@ button:disabled {
   line-height: 1.35;
 }
 
+/* ─── Direction indicator ─── */
+.direction-indicator {
+  margin-top: 4px;
+  font-size: 22px;
+  opacity: 0.88;
+  line-height: 1;
+}
+
+.direction-indicator.cw {
+  animation: rotateCW 3s linear infinite;
+  color: #7ecbff;
+}
+
+.direction-indicator.ccw {
+  animation: rotateCCW 3s linear infinite;
+  color: #ff9e7e;
+}
+
+@keyframes rotateCW {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rotateCCW {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
 /* ─── Player Area ─── */
 .player-area {
   background: rgba(0, 0, 0, 0.5);

@@ -842,6 +842,9 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           <div className="phase-title">{phase ? getPhaseTitle(phase.phase) : "回合阶段"}</div>
           <div className="phase-time" ref={phaseTimeRef}>{phase ? `${Math.max(0, (phase.endsAt - Date.now()) / 1000).toFixed(1)}s` : "--.-s"}</div>
           <div className="phase-subtitle">{phase ? getPhaseSubtitle(phase.phase, phase.actingPlayerId, phase.sourcePlayerId) : "等待开始"}</div>
+          <div className={`direction-indicator ${gameState.direction === 1 ? "cw" : "ccw"}`}>
+            {gameState.direction === 1 ? "↻" : "↺"}
+          </div>
         </div>
 
         <div className="pile-column">
