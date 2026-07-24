@@ -296,16 +296,11 @@ button:disabled {
   pointer-events: none;
 }
 
-/* ─── Teammate expandable hand ─── */
+/* ─── Teammate hand: collapsed view + "查看" button ─── */
 .teammate-hand-wrapper {
   position: relative;
   margin-top: 10px;
   height: 56px;
-  transition: height 0.35s ease;
-}
-
-.teammate-hand-wrapper:hover {
-  height: 90px;
 }
 
 .teammate-hand-collapsed {
@@ -315,41 +310,64 @@ button:disabled {
   transform: translateX(-50%);
   display: inline-flex;
   opacity: 1;
-  transition: opacity 0.2s ease;
-}
-
-.teammate-hand-wrapper:hover .teammate-hand-collapsed {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .teammate-hand-collapsed > .small-card {
   position: relative;
 }
 
-.teammate-hand-expanded {
+.teammate-view-btn {
   position: absolute;
+  bottom: 2px;
+  right: -4px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.12);
+  color: #ccc;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.teammate-hand-wrapper:hover .teammate-view-btn {
+  opacity: 1;
+}
+
+/* ─── Teammate hand fullscreen viewer ─── */
+.teammate-viewer-overlay {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  opacity: 0;
-  transition: opacity 0.2s ease 0.1s;
-  pointer-events: none;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  animation: viewerFadeIn 0.2s ease;
 }
 
-.teammate-hand-wrapper:hover .teammate-hand-expanded {
-  opacity: 1;
-  pointer-events: auto;
+@keyframes viewerFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.teammate-mini-hand {
+.teammate-viewer-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ddd;
+  margin-bottom: 16px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.teammate-viewer-hand {
   position: relative;
-  height: 56px;
-}
-
-.teammate-mini-hand > .small-card {
-  position: absolute;
-  top: 2px;
+  width: min(900px, calc(100vw - 40px));
+  height: 140px;
 }
 
 /* ─── Own hand count badge ─── */

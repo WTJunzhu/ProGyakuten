@@ -279,7 +279,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
   const [teammateHoverX, setTeammateHoverX] = useState<Record<string, number>>({});
-  const teammateExpandRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [teammateView, setTeammateView] = useState<string | null>(null); // playerId of teammate being viewed
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Phase timer ticker + progress bar
@@ -777,7 +777,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
               )}
 
               {isTeammate && teammateCards && teammateCards.length > 0 ? (
-                /* ─── Teammate: expandable hand ─── */
+                /* ─── Teammate: collapsed view + "查看" button ─── */
                 <div className="teammate-hand-wrapper">
                   <div className="teammate-hand-collapsed">
                     <div className={`card small-card ${latestCard!.color}`}>
@@ -787,49 +787,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                       <span className="hand-count-badge">+{teammateCards.length - 1}</span>
                     )}
                   </div>
-                  <div
-                    className="teammate-hand-expanded"
-                    ref={(el) => { teammateExpandRefs.current[p.playerId] = el; }}
-                    onMouseMove={(e) => {
-                      const rect = teammateExpandRefs.current[p.playerId]?.getBoundingClientRect();
-                      if (rect) {
-                        setTeammateHoverX(prev => ({ ...prev, [p.playerId]: e.clientX - rect.left }));
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      setTeammateHoverX(prev => {
-                        const next = { ...prev };
-                        delete next[p.playerId];
-                        return next;
-                      });
-                    }}
-                  >
-                    <div className="teammate-mini-hand">
-                      {(() => {
-                        const tw = teammateExpandRefs.current[p.playerId]?.clientWidth ?? 200;
-                        const layouts = computeCardLayouts(
-                          teammateCards.length, tw,
-                          teammateHoverX[p.playerId] ?? null,
-                          { cardWidth: 36, maxScale: 1.3, scaleSigma: 55 }
-                        );
-                        return teammateCards.map((c, i) => (
-                          <div
-                            key={c.id}
-                            className={`card small-card ${c.color}`}
-                            style={{
-                              position: "absolute",
-                              left: layouts[i].left,
-                              top: 0,
-                              zIndex: layouts[i].zIndex,
-                              transform: `scale(${layouts[i].scale.toFixed(3)})`,
-                              transformOrigin: "bottom center",
-                              transition: "left 0.15s ease, transform 0.15s ease",
-                            }}
-                          >{cardFace(c)}</div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
+                  <button className="teammate-view-btn" onClick={() => setTeammateView(p.playerId)}>查看</button>
                 </div>
               ) : (
                 /* ─── Enemy: single card-back + centered count ─── */
@@ -843,6 +801,56 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
           );
         })}
       </div>
+
+      {/* Teammate hand fullscreen viewer */}
+      {teammateView && (() => {
+        const cards = teammateHands[teammateView] ?? [];
+        if (cards.length === 0) return null;
+        return (
+          <div
+            className="teammate-viewer-overlay"
+            onMouseLeave={() => { setTeammateView(null); setTeammateHoverX((prev) => { const n = { ...prev }; delete n[teammateView]; return n; }); }}
+            onMouseMove={(e) => {
+              const rect = (e.currentTarget.querySelector('.teammate-viewer-hand') as HTMLElement)?.getBoundingClientRect();
+              if (rect) {
+                setTeammateHoverX((prev) => ({ ...prev, [teammateView]: e.clientX - rect.left }));
+              }
+            }}
+          >
+            <div className="teammate-viewer-title">{teammateView} 的手牌</div>
+            <div className="teammate-viewer-hand">
+              {(() => {
+                const containerWidth = Math.min(window.innerWidth - 40, 900);
+                const layouts = computeCardLayouts(
+                  cards.length, containerWidth,
+                  teammateHoverX[teammateView] ?? null,
+                  { cardWidth: 70, maxScale: 1.5, scaleSigma: 100 }
+                );
+                return cards.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className={`card ${c.color}`}
+                    style={{
+                      position: "absolute",
+                      left: layouts[i].left,
+                      top: 0,
+                      zIndex: layouts[i].zIndex,
+                      transform: `scale(${layouts[i].scale.toFixed(3)}) translateY(${layouts[i].liftY.toFixed(1)}px)`,
+                      transformOrigin: "bottom center",
+                      transition: "left 0.15s ease, transform 0.15s ease",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <span className="corner tl">{cardCornerText(c)}</span>
+                    <span className="card-center">{cardFace(c)}</span>
+                    <span className="corner br">{cardCornerText(c)}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Row 2: Table center */}
       <div className={`table-center${dragState ? " drag-zone-play" : ""}`} ref={tableCenterRef}>
