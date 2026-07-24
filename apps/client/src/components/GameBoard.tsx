@@ -233,6 +233,10 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const tableCenterRef = useRef<HTMLDivElement>(null);
   const gameViewRef = useRef<HTMLDivElement>(null);
   const prevTopCardIdRef = useRef<string | null>(null);
+  const prevHandLengthRef = useRef<number>(0);
+  const prevOpponentHandCountsRef = useRef<Record<string, number>>({});
+  const [ownCountPulse, setOwnCountPulse] = useState(false);
+  const [opponentPulseIds, setOpponentPulseIds] = useState<Set<string>>(new Set());
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
@@ -302,6 +306,35 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       return () => clearTimeout(timer);
     }
   }, [focusTarget, playerId]);
+
+  // ── Own hand count pulse animation ──────────────────────────
+  useEffect(() => {
+    if (hand.length !== prevHandLengthRef.current) {
+      prevHandLengthRef.current = hand.length;
+      setOwnCountPulse(true);
+      const t = setTimeout(() => setOwnCountPulse(false), 350);
+      return () => clearTimeout(t);
+    }
+  }, [hand.length]);
+
+  // ── Opponent hand count pulse animation ──────────────────────
+  useEffect(() => {
+    if (!gameState) return;
+    const changed: string[] = [];
+    for (const p of gameState.players) {
+      if (p.playerId === playerId) continue;
+      const prev = prevOpponentHandCountsRef.current[p.playerId] ?? 0;
+      if (p.handCount !== prev) {
+        prevOpponentHandCountsRef.current[p.playerId] = p.handCount;
+        changed.push(p.playerId);
+      }
+    }
+    if (changed.length > 0) {
+      setOpponentPulseIds(new Set(changed));
+      const t = setTimeout(() => setOpponentPulseIds(new Set()), 350);
+      return () => clearTimeout(t);
+    }
+  }, [gameState?.players, playerId]);
 
   // Cleanup long press timer
   useEffect(() => {
@@ -741,7 +774,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                 /* ─── Enemy: single card-back + centered count ─── */
                 <div className="enemy-hand-area">
                   <div className="card-back enemy-card-back">
-                    <span className="hand-count-center">{p.handCount}</span>
+                    <span className={`hand-count-center${opponentPulseIds.has(p.playerId) ? " count-pulse" : ""}`}>{p.handCount}</span>
                   </div>
                 </div>
               )}
@@ -913,7 +946,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
               );
             })}
           </div>
-          <div className={`own-hand-count${burstSelf ? " burst-center" : ""}`}>{hand.length}</div>
+          <div className={`own-hand-count${burstSelf ? " burst-center" : ""}${ownCountPulse ? " count-pulse" : ""}`}>{hand.length}</div>
         </div>
       </div>
       )} {/* end of isSpectating ? ... : player-area */}
