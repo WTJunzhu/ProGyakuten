@@ -586,9 +586,7 @@ button:disabled {
 }
 
 /* :hover transform is now handled by JS dock magnification */
-.hand-container > .card:hover {
-  z-index: 10;
-}
+/* hover magnification is handled by JS computeCardLayouts (Dock layout) */
 
 .hand-container > .card.dragging {
   opacity: 0.35;
@@ -616,9 +614,7 @@ button:disabled {
   overflow: hidden;
 }
 
-.card:hover {
-  transform: translateY(-14px);
-}
+/* hover lift handled by JS computeCardLayouts — do not set transform here */
 
 .card > div {
   position: relative;
@@ -1084,7 +1080,7 @@ button:disabled {
     padding: 6px;
   }
 
-  .card:hover { transform: translateY(-8px); }
+  /* hover lift handled by JS — no CSS override needed */
 
   .card .card-center { font-size: 18px; }
   .card .corner { font-size: 9px; }
