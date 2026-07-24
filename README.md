@@ -91,30 +91,27 @@ ProGyakuten/
 
 ## 快速开始
 
-```bash
-# 安装依赖
-npm install
+### 线上直接玩
 
-# 构建（必须按顺序）
+访问 **`pro-gyakuten-client.vercel.app`**，注册账户 → 选择角色 → 创建/加入房间 → 开始游戏。
+
+### 本地开发
+
+```bash
+npm install
 npm run build -w @pro-gyakuten/protocol
 npm run build -w @pro-gyakuten/core
 npm run build -w @pro-gyakuten/server
 npm run build -w @pro-gyakuten/client
-```
 
-### 启动服务器
-
-```bash
+# 启动服务端
 npm run dev -w @pro-gyakuten/server    # → ws://localhost:3001
-```
 
-### 启动客户端
-
-```bash
+# 启动客户端
 npm run dev -w @pro-gyakuten/client    # → http://localhost:3000
 ```
 
-打开浏览器访问 `http://localhost:3000`，注册账户 → 选择角色 → 创建/加入房间 → 开始游戏。
+打开 `http://localhost:3000` 即可本地调试。线上地址见上方。
 
 ---
 
