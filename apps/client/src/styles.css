@@ -327,12 +327,8 @@ button:disabled {
   color: #ccc;
   font-size: 10px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.teammate-hand-wrapper:hover .teammate-view-btn {
   opacity: 1;
+  transition: opacity 0.2s;
 }
 
 /* ─── Teammate hand fullscreen viewer ─── */
@@ -366,8 +362,11 @@ button:disabled {
 
 .teammate-viewer-hand {
   position: relative;
-  width: min(900px, calc(100vw - 40px));
-  height: 140px;
+  max-width: calc(100vw - 40px);
+  height: 116px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ─── Own hand count badge ─── */
@@ -719,7 +718,9 @@ button:disabled {
 .hand-scroll {
   position: relative;
   width: 100%;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 8px 12px 2px;
 }
 
@@ -2118,4 +2119,88 @@ button:disabled {
 
 .spectate-btn:hover {
   background: rgba(108, 92, 231, 0.45);
+}
+
+/* ─── Mobile portrait (narrow screens) ─── */
+@media (max-width: 500px) and (orientation: portrait) {
+  :root {
+    --card-width: 50px;
+    --card-height: 76px;
+  }
+
+  .card {
+    font-size: 14px;
+    padding: 4px;
+  }
+  .card .card-center { font-size: 14px; }
+  .card .corner { font-size: 7px; }
+
+  .hand-scroll {
+    padding: 2px 4px 0;
+  }
+  .hand-container {
+    height: var(--card-height);
+    min-height: var(--card-height);
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .toolbar button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .status-badge {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .opponents-area {
+    gap: 6px;
+  }
+  .opponent {
+    padding: 6px 8px;
+  }
+
+  .small-card {
+    width: 22px;
+    height: 34px;
+    font-size: 7px;
+  }
+
+  .card-back {
+    width: 18px;
+    height: 26px;
+  }
+
+  .table-center {
+    gap: 6px;
+  }
+
+  .pile-caption {
+    font-size: 9px;
+  }
+
+  .phase-title {
+    font-size: 12px;
+  }
+  .phase-subtitle {
+    font-size: 9px;
+  }
+
+  .own-hand-count {
+    font-size: 14px;
+    min-width: 18px;
+  }
+
+  .offline-badge {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+
+  .teammate-view-btn {
+    font-size: 8px;
+    padding: 1px 6px;
+  }
 }

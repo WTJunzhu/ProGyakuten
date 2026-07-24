@@ -278,7 +278,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
   const [dragNearZone, setDragNearZone] = useState<"hand" | "play" | null>(null);
-  const [teammateHoverX, setTeammateHoverX] = useState<Record<string, number>>({});
   const [teammateView, setTeammateView] = useState<string | null>(null); // playerId of teammate being viewed
 
   // Phase timer ticker + progress bar
@@ -438,7 +437,11 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   // ─── Card layout: Mac-Dock-style magnification ───
   const containerWidth = handContainerRef.current?.clientWidth ?? 800;
-  const cardLayouts = computeCardLayouts(hand.length, containerWidth, hoverX);
+  const measuredCardWidth = (() => {
+    const firstCard = handContainerRef.current?.querySelector(".card");
+    return firstCard ? firstCard.getBoundingClientRect().width : CARD_WIDTH;
+  })();
+  const cardLayouts = computeCardLayouts(hand.length, containerWidth, hoverX, { cardWidth: measuredCardWidth });
 
   // ─── Action handlers ───
   const playCard = (card: Card) => {
@@ -803,47 +806,37 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       {teammateView && (() => {
         const cards = teammateHands[teammateView] ?? [];
         if (cards.length === 0) return null;
+        const cardSpacing = Math.min(56, (window.innerWidth - 40 - 20) / cards.length);
         return (
           <div
             className="teammate-viewer-overlay"
-            onMouseLeave={() => { setTeammateView(null); setTeammateHoverX((prev) => { const n = { ...prev }; delete n[teammateView]; return n; }); }}
-            onMouseMove={(e) => {
-              const rect = (e.currentTarget.querySelector('.teammate-viewer-hand') as HTMLElement)?.getBoundingClientRect();
-              if (rect) {
-                setTeammateHoverX((prev) => ({ ...prev, [teammateView]: e.clientX - rect.left }));
+            onMouseLeave={() => setTeammateView(null)}
+            onTouchEnd={(e) => {
+              // Close when touching outside the hand area
+              if (!(e.target as HTMLElement).closest('.teammate-viewer-hand')) {
+                setTeammateView(null);
               }
             }}
           >
             <div className="teammate-viewer-title">{teammateView} 的手牌</div>
             <div className="teammate-viewer-hand">
-              {(() => {
-                const containerWidth = Math.min(window.innerWidth - 40, 900);
-                const layouts = computeCardLayouts(
-                  cards.length, containerWidth,
-                  teammateHoverX[teammateView] ?? null,
-                  { cardWidth: 70, maxScale: 1.5, scaleSigma: 100 }
-                );
-                return cards.map((c, i) => (
-                  <div
-                    key={c.id}
-                    className={`card ${c.color}`}
-                    style={{
-                      position: "absolute",
-                      left: layouts[i].left,
-                      top: 0,
-                      zIndex: layouts[i].zIndex,
-                      transform: `scale(${layouts[i].scale.toFixed(3)}) translateY(${layouts[i].liftY.toFixed(1)}px)`,
-                      transformOrigin: "bottom center",
-                      transition: "left 0.15s ease, transform 0.15s ease",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    <span className="corner tl">{cardCornerText(c)}</span>
-                    <span className="card-center">{cardFace(c)}</span>
-                    <span className="corner br">{cardCornerText(c)}</span>
-                  </div>
-                ));
-              })()}
+              {cards.map((c, i) => (
+                <div
+                  key={c.id}
+                  className={`card ${c.color}`}
+                  style={{
+                    position: "absolute",
+                    left: i * cardSpacing,
+                    top: 0,
+                    zIndex: i,
+                    pointerEvents: "none",
+                  }}
+                >
+                  <span className="corner tl">{cardCornerText(c)}</span>
+                  <span className="card-center">{cardFace(c)}</span>
+                  <span className="corner br">{cardCornerText(c)}</span>
+                </div>
+              ))}
             </div>
           </div>
         );
