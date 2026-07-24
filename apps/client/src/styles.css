@@ -590,6 +590,16 @@ button:disabled {
   z-index: 4;
 }
 
+/* 罚摸 ≥10 时脉冲弹跳 */
+.penalty-count.danger-pulse {
+  animation: dangerPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes dangerPulse {
+  from { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.6); }
+  to { transform: scale(1.18); box-shadow: 0 0 12px 4px rgba(255, 107, 107, 0.5); }
+}
+
 /* ─── Phase Panel ─── */
 .phase-panel {
   width: min(220px, 34vw);

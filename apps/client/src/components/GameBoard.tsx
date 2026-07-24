@@ -864,7 +864,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             >
               <div style={{ fontSize: 32 }}>{cardFace(gameState.topCard)}</div>
               {gameState.drawCardStack > 0 && (
-                <div className="penalty-count">+{gameState.drawCardStack}</div>
+                <div className={`penalty-count${gameState.drawCardStack >= 10 ? " danger-pulse" : ""}`}>+{gameState.drawCardStack}</div>
               )}
             </div>
           </div>
