@@ -728,6 +728,7 @@ button:disabled {
   width: 100%;
   height: var(--card-height);
   min-height: var(--card-height);
+  touch-action: none; /* prevent page scroll during card drag on touch */
 }
 
 .hand-container > .card {

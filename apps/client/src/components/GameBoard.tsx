@@ -170,7 +170,6 @@ function CharacterPanel({
   );
 }
 
-const LONG_PRESS_MS = 300;
 const MIN_VISIBLE = 28;
 const MAX_VISIBLE = 92;
 const CARD_WIDTH = 80;
@@ -278,9 +277,9 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [dragState, setDragState] = useState<{ cardId: string; startX: number; startY: number } | null>(null);
+  const [dragNearZone, setDragNearZone] = useState<"hand" | "play" | null>(null);
   const [teammateHoverX, setTeammateHoverX] = useState<Record<string, number>>({});
   const [teammateView, setTeammateView] = useState<string | null>(null); // playerId of teammate being viewed
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Phase timer ticker + progress bar
   useEffect(() => {
@@ -391,12 +390,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     }
   }, [logLines]);
 
-  // Cleanup long press timer
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    };
-  }, []);
 
   if (!gameState) return <div style={{ padding: 40, textAlign: "center" }}>加载中...</div>;
 
@@ -470,6 +463,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   const handleCardClick = (card: Card) => {
     if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+    if (wasDraggingRef.current) { wasDraggingRef.current = false; return; }
 
     // ── 技能选牌模式 ──────────────────────────────────────
     if (pendingSkill) {
@@ -553,88 +547,82 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     return Math.min(count - 1, Math.max(0, Math.round(relX / vw)));
   }, [hand.length]);
 
-  // ─── Drag: pointer down + move detection ───
+  // ─── Drag: pointer down — immediately ready to drag ───
   const pointerStartRef = useRef<{ cardId: string; x: number; y: number } | null>(null);
   const touchHandledRef = useRef(false);
+  const wasDraggingRef = useRef(false); // prevent click after drag
 
   const handlePointerDown = useCallback((card: Card, e: React.PointerEvent) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
     touchHandledRef.current = false;
     pointerStartRef.current = { cardId: card.id, x: e.clientX, y: e.clientY };
-    // Long-press timer for touch: sets dragState + hoverX after LONG_PRESS_MS
-    const startX = e.clientX;
-    const startY = e.clientY;
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTimerRef.current = null;
-      setDragState({ cardId: card.id, startX, startY });
-    }, LONG_PRESS_MS);
   }, []);
 
-  // Track pointer movement — set dragState when threshold exceeded
+  // Track pointer movement — enter dragState when threshold exceeded (no delay)
   useEffect(() => {
     const handleMove = (e: PointerEvent) => {
-      if (!pointerStartRef.current || dragState) return;
+      if (!pointerStartRef.current) return;
+      // If already dragging, update hoverX and zone detection
+      if (dragState) {
+        const rect = handContainerRef.current?.getBoundingClientRect();
+        if (rect) setHoverX(e.clientX - rect.left);
+        // Zone proximity: show highlight only when near boundary
+        if (isInPlayArea(e.clientX, e.clientY)) {
+          setDragNearZone("play");
+        } else if (isInHandArea(e.clientX, e.clientY)) {
+          setDragNearZone("hand");
+        } else {
+          setDragNearZone(null);
+        }
+        return;
+      }
       const dx = Math.abs(e.clientX - pointerStartRef.current.x);
       const dy = Math.abs(e.clientY - pointerStartRef.current.y);
       if (dx > 5 || dy > 5) {
-        if (longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
         setDragState({ cardId: pointerStartRef.current.cardId, startX: pointerStartRef.current.x, startY: pointerStartRef.current.y });
       }
     };
     document.addEventListener("pointermove", handleMove);
     return () => document.removeEventListener("pointermove", handleMove);
-  }, [dragState]);
+  }, [dragState, isInPlayArea, isInHandArea]);
 
-  // ─── HTML5 Drag: start ───
-  const handleDragStart = useCallback((card: Card, e: React.DragEvent) => {
-    if (!dragState || dragState.cardId !== card.id) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData("text/plain", card.id);
-    e.dataTransfer.effectAllowed = "move";
-  }, [dragState]);
-
-  // ─── HTML5 Drag: end (zone detection) ───
-  const handleDragEnd = useCallback((card: Card, e: React.DragEvent) => {
-    if (!dragState || dragState.cardId !== card.id) {
-      setDragState(null);
-      pointerStartRef.current = null;
-      return;
-    }
-    const endX = e.clientX;
-    const endY = e.clientY;
-
-    if (isInPlayArea(endX, endY)) {
-      const canPlay = isCardPlayable(card, gameState, allowedActions, playerId, playableDrawnCardId, phase?.phase);
-      const canSnatch = isCardSnatchable(card, gameState, allowedActions, phase?.phase);
-      if (canSnatch) { handleSnatch(card); }
-      else if (canPlay) { playCard(card); }
-      else { useToastStore.getState().showToast("当前无法打出此牌", "warning"); }
-    } else if (isInHandArea(endX, endY)) {
-      const fromIndex = hand.findIndex(c => c.id === card.id);
-      const toIndex = getDropIndex(endX);
-      if (fromIndex !== -1 && fromIndex !== toIndex) {
-        reorderHand(fromIndex, toIndex);
+  // Pointer up — if didn't drag, treat as click; if dragged, handle drop
+  useEffect(() => {
+    const handleUp = (e: PointerEvent) => {
+      if (!pointerStartRef.current) return;
+      if (dragState) {
+        // Dropped after dragging
+        const card = hand.find(c => c.id === dragState.cardId);
+        if (card) {
+          const endX = e.clientX;
+          const endY = e.clientY;
+          if (isInPlayArea(endX, endY)) {
+            const canPlay = isCardPlayable(card, gameState, allowedActions, playerId, playableDrawnCardId, phase?.phase);
+            const canSnatch = isCardSnatchable(card, gameState, allowedActions, phase?.phase);
+            if (canSnatch) { handleSnatch(card); }
+            else if (canPlay) { playCard(card); }
+            else { useToastStore.getState().showToast("当前无法打出此牌", "warning"); }
+          } else if (isInHandArea(endX, endY)) {
+            const fromIndex = hand.findIndex(c => c.id === card.id);
+            const toIndex = getDropIndex(endX);
+            if (fromIndex !== -1 && fromIndex !== toIndex) {
+              reorderHand(fromIndex, toIndex);
+            }
+          }
+        }
+        wasDraggingRef.current = true;
+        setDragState(null);
+        setDragNearZone(null);
+        setHoverX(null);
+      } else {
+        // No drag happened (< 5px movement) — treat as click
+        // Click handling is done in onClick, which fires after pointerup
+        wasDraggingRef.current = false;
       }
-    }
-    setDragState(null);
-    pointerStartRef.current = null;
+      pointerStartRef.current = null;
+    };
+    document.addEventListener("pointerup", handleUp);
+    return () => document.removeEventListener("pointerup", handleUp);
   }, [dragState, gameState, allowedActions, playerId, playableDrawnCardId, phase, hand, isInPlayArea, isInHandArea, getDropIndex, handleSnatch, playCard, reorderHand]);
-
-  // ─── HTML5 Drag: over hand container ───
-  const handleHandDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    const rect = handContainerRef.current?.getBoundingClientRect();
-    if (rect) setHoverX(e.clientX - rect.left);
-  }, []);
 
   // ─── Hover: mouse move on hand container ───
   const handleHandMouseMove = useCallback((e: React.MouseEvent) => {
@@ -649,45 +637,46 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     setHoverX(null);
   }, [dragState]);
 
-  // ─── Touch: long press + expand + drag ───
+  // ─── Touch: immediate drag (no long-press delay) ───
   const touchStartPos = useRef<{ x: number; y: number; cardId: string } | null>(null);
 
   const handleTouchStart = useCallback((card: Card, e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartPos.current = { x: touch.clientX, y: touch.clientY, cardId: card.id };
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTimerRef.current = null;
-      if (handContainerRef.current) {
-        const rect = handContainerRef.current.getBoundingClientRect();
-        setHoverX(touch.clientX - rect.left);
-      }
-      setDragState({ cardId: card.id, startX: touch.clientX, startY: touch.clientY });
-    }, LONG_PRESS_MS);
+    touchHandledRef.current = false;
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
-    if (handContainerRef.current) {
-      const rect = handContainerRef.current.getBoundingClientRect();
-      setHoverX(touch.clientX - rect.left);
+    if (!touchStartPos.current) return;
+    // If already in dragState, track hoverX and zone detection
+    if (dragState) {
+      if (handContainerRef.current) {
+        const rect = handContainerRef.current.getBoundingClientRect();
+        setHoverX(touch.clientX - rect.left);
+      }
+      if (isInPlayArea(touch.clientX, touch.clientY)) {
+        setDragNearZone("play");
+      } else if (isInHandArea(touch.clientX, touch.clientY)) {
+        setDragNearZone("hand");
+      } else {
+        setDragNearZone(null);
+      }
+      return;
     }
-    if (dragState && touchStartPos.current) {
-      const dx = Math.abs(touch.clientX - touchStartPos.current.x);
-      const dy = Math.abs(touch.clientY - touchStartPos.current.y);
-      if (dx > 10 || dy > 10) {
-        if (longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
+    // Enter dragState on movement (no delay)
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    if (dx > 5 || dy > 5) {
+      setDragState({ cardId: touchStartPos.current.cardId, startX: touchStartPos.current.x, startY: touchStartPos.current.y });
+      if (handContainerRef.current) {
+        const rect = handContainerRef.current.getBoundingClientRect();
+        setHoverX(touch.clientX - rect.left);
       }
     }
   }, [dragState]);
 
   const handleTouchEnd = useCallback((card: Card, e: React.TouchEvent) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
     const touch = e.changedTouches[0];
     const endX = touch.clientX;
     const endY = touch.clientY;
@@ -707,13 +696,14 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
         }
       }
       setDragState(null);
+      setDragNearZone(null);
       pointerStartRef.current = null;
       touchHandledRef.current = true;
+      setHoverX(null);
     } else if (!dragState) {
       touchHandledRef.current = true;
       handleCardClick(card);
     }
-    setHoverX(null);
     touchStartPos.current = null;
   }, [dragState, gameState, allowedActions, playerId, playableDrawnCardId, phase, hand, isInPlayArea, isInHandArea, getDropIndex, handleSnatch, playCard, handleCardClick, reorderHand]);
 
@@ -853,7 +843,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       })()}
 
       {/* Row 2: Table center */}
-      <div className={`table-center${dragState ? " drag-zone-play" : ""}`} ref={tableCenterRef}>
+      <div className={`table-center${dragNearZone === "play" ? " drag-zone-play" : ""}`} ref={tableCenterRef}>
         <div className="pile-column">
           <div className="pile-caption">摸牌堆</div>
           <div className="pile-stack">
@@ -954,11 +944,10 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
         <div className="hand-scroll">
           <div
-            className={`hand-container${dragState ? " drag-zone-hand" : ""}`}
+            className={`hand-container${dragNearZone === "hand" ? " drag-zone-hand" : ""}`}
             ref={handContainerRef}
             onMouseMove={handleHandMouseMove}
             onMouseLeave={handleHandMouseLeave}
-            onDragOver={handleHandDragOver}
           >
             {hand.map((card, index) => {
               const canPlay = isCardPlayable(card, gameState, allowedActions, playerId, playableDrawnCardId, phase?.phase);
@@ -1001,13 +990,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                   key={card.id}
                   className={classes}
                   style={{ ...cardStyle, ...comboStyle }}
-                  draggable
                   onClick={() => handleCardClick(card)}
                   onPointerDown={(e) => handlePointerDown(card, e)}
-                  onPointerUp={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } pointerStartRef.current = null; }}
-                  onPointerLeave={() => { if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; } pointerStartRef.current = null; }}
-                  onDragStart={(e) => handleDragStart(card, e)}
-                  onDragEnd={(e) => handleDragEnd(card, e)}
                   onTouchStart={(e) => handleTouchStart(card, e)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={(e) => handleTouchEnd(card, e)}
