@@ -548,13 +548,14 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
   }, [hand.length]);
 
   // ─── Drag: pointer down — immediately ready to drag ───
-  const pointerStartRef = useRef<{ cardId: string; x: number; y: number } | null>(null);
+  const pointerStartRef = useRef<{ cardId: string; x: number; y: number; time: number } | null>(null);
   const touchHandledRef = useRef(false);
   const wasDraggingRef = useRef(false); // prevent click after drag
+  const CLICK_THRESHOLD_MS = 300; // hold longer than this = "changed mind, no action"
 
   const handlePointerDown = useCallback((card: Card, e: React.PointerEvent) => {
     touchHandledRef.current = false;
-    pointerStartRef.current = { cardId: card.id, x: e.clientX, y: e.clientY };
+    pointerStartRef.current = { cardId: card.id, x: e.clientX, y: e.clientY, time: Date.now() };
   }, []);
 
   // Track pointer movement — enter dragState when threshold exceeded (no delay)
@@ -614,9 +615,15 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
         setDragNearZone(null);
         setHoverX(null);
       } else {
-        // No drag happened (< 5px movement) — treat as click
-        // Click handling is done in onClick, which fires after pointerup
-        wasDraggingRef.current = false;
+        // No drag happened (< 5px movement)
+        const elapsed = Date.now() - (pointerStartRef.current?.time ?? 0);
+        if (elapsed < CLICK_THRESHOLD_MS) {
+          // Quick click — let React onClick handle it
+          wasDraggingRef.current = false;
+        } else {
+          // Long press without moving = "changed mind" — no action
+          wasDraggingRef.current = true;
+        }
       }
       pointerStartRef.current = null;
     };
