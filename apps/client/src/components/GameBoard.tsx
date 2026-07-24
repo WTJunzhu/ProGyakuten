@@ -711,8 +711,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       touchHandledRef.current = true;
       setHoverX(null);
     } else if (!dragState) {
-      touchHandledRef.current = true;
       handleCardClick(card);
+      touchHandledRef.current = true; // prevent subsequent browser onClick
     }
     touchStartPos.current = null;
   }, [dragState, gameState, allowedActions, playerId, playableDrawnCardId, phase, hand, isInPlayArea, isInHandArea, getDropIndex, handleSnatch, playCard, handleCardClick, reorderHand]);
