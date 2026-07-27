@@ -68,6 +68,26 @@ export function markDisconnected(playerId: string): void {
         broadcastRoomSnapshot(room);
       }
       broadcastToLobby(getLobbyStateEvent());
+    } else if (room.status === "in_game") {
+      // Check if all human players have disconnected — auto-dissolve zombie room
+      const humanPlayerIds = room.players.filter(pid => !room.aiPlayers.includes(pid));
+      const connectedHumans = humanPlayerIds.filter(pid => {
+        const c = playersById.get(pid);
+        return c && !c.disconnectedAt;
+      });
+      if (connectedHumans.length === 0) {
+        console.log(`[disconnect] Room ${room.roomId} has no connected humans — dissolving zombie room`);
+        // Clean up all AI entries
+        room.aiPlayers = [];
+        room.players = [];
+        room.game = undefined;
+        room.phase = undefined;
+        room.status = "finished";
+        roomManager.delete(room.roomId);
+        await persistence.deleteRoom(room.roomId);
+        await persistence.deleteGameSnapshot(room.roomId);
+        broadcastToLobby(getLobbyStateEvent());
+      }
     }
   }, RECONNECT_GRACE_MS + 100);
 }

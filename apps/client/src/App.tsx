@@ -99,13 +99,37 @@ export default function App() {
       }
     });
 
-    ws.connect()
+    // Connect with retry — Render cold start can take 30+ seconds
+    const connectWithRetry = async (attempts: number = 3): Promise<void> => {
+      for (let i = 0; i < attempts; i++) {
+        try {
+          // Wait longer for first attempt (Render cold start)
+          const timeoutMs = i === 0 ? 60000 : 30000;
+          const result = await Promise.race([
+            ws.connect(),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("连接超时")), timeoutMs)
+            )
+          ]);
+          return result;
+        } catch (err) {
+          if (i < attempts - 1) {
+            useToastStore.getState().showToast(`连接失败，正在重试 (${i + 2}/${attempts})...`, "warning");
+            await new Promise(r => setTimeout(r, 2000));
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
+    connectWithRetry()
       .then(() => {
         useToastStore.getState().showToast("连接服务器成功", "success");
       })
       .catch(() => {
         setWsReady(false);
-        useToastStore.getState().showToast("连接服务器失败", "error");
+        useToastStore.getState().showToast("连接服务器失败，请确认服务器是否在线", "error");
         setView("login");
       });
 
