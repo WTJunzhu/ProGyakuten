@@ -24,10 +24,10 @@ export function Lobby({ wsSend }: { wsSend: (e: unknown) => void }) {
     wsSend({ type: "joinRoomAsSpectator", roomId });
   };
 
-  const backToMenu = () => {
+  const backToCharacterSelect = () => {
     useGameStore.getState().resetGame();
-    useGameStore.setState({ token: null, selectedCharacterId: null, selectedCharacterName: null });
-    useGameStore.getState().setView("login");
+    useGameStore.setState({ selectedCharacterId: null, selectedCharacterName: null });
+    // effectiveView will resolve to "character" since token exists but no selectedCharacterId
   };
 
   return (
@@ -37,7 +37,7 @@ export function Lobby({ wsSend }: { wsSend: (e: unknown) => void }) {
           <h2 style={{ margin: 0 }}>房间大厅</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => wsSend({ type: "requestLobbyState" })}>刷新</button>
-            <button onClick={backToMenu}>返回主菜单</button>
+            <button onClick={backToCharacterSelect}>返回角色选择</button>
           </div>
         </div>
 

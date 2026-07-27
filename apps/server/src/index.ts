@@ -54,25 +54,28 @@ async function restoreRooms(): Promise<void> {
   }
 
   // ── Clean up zombie rooms: no human players (only AI left) ──
+  const zombieRoomIds: string[] = [];
   for (const room of roomManager.values()) {
-    const humanPlayers = room.players.filter(pid => !room.aiPlayers.includes(pid));
-    if (humanPlayers.length === 0 && room.players.length > 0) {
-      console.log(`[restore] Room ${room.roomId}: only AI players left, dissolving zombie room`);
-      room.aiPlayers = [];
-      room.players = [];
-      room.game = undefined;
-      room.phase = undefined;
-      room.status = "finished";
-      roomManager.delete(room.roomId);
-      await persistence.deleteRoom(room.roomId);
-      await persistence.deleteGameSnapshot(room.roomId);
-    } else if (humanPlayers.length === 0 && room.players.length === 0) {
-      // Empty room — also dissolve
-      console.log(`[restore] Room ${room.roomId}: empty room, dissolving`);
-      roomManager.delete(room.roomId);
-      await persistence.deleteRoom(room.roomId);
-      await persistence.deleteGameSnapshot(room.roomId);
+    const humanPlayers = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
+    if (humanPlayers.length === 0) {
+      zombieRoomIds.push(room.roomId);
     }
+  }
+  for (const roomId of zombieRoomIds) {
+    const room = roomManager.get(roomId);
+    if (!room) continue;
+    console.log(`[restore] Room ${roomId}: no human players, dissolving zombie room (players=${room.players}, ai=${room.aiPlayers})`);
+    room.aiPlayers = [];
+    room.players = [];
+    room.game = undefined;
+    room.phase = undefined;
+    room.status = "finished";
+    roomManager.delete(roomId);
+    await persistence.deleteRoom(roomId);
+    await persistence.deleteGameSnapshot(roomId);
+  }
+  if (zombieRoomIds.length > 0) {
+    console.log(`[restore] Cleaned up ${zombieRoomIds.length} zombie room(s)`);
   }
 
   if (restoredRoomIds.length > 0) {
