@@ -85,25 +85,27 @@ export class RoomManager {
 
     if (room.status === "lobby" || room.status === "game_over") {
       removePlayerFromLobbyRoom(room, playerId);
-      if (room.players.length === 0) {
-        this.rooms.delete(room.roomId);
-      } else if (room.players.length === 1) {
-        const lastPid = room.players[0];
-        const lastConn = playersById.get(lastPid);
-        if (lastConn) {
-          lastConn.roomId = undefined;
-          lastConn.isInLobby = true;
-          send(lastConn.ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间人数不足，已自动解散" });
+      const humanPlayers = room.players.filter(pid => !room.aiPlayers?.includes(pid));
+      if (humanPlayers.length === 0) {
+        // No humans left (only AI or empty) — dissolve
+        for (const pid of room.players) {
+          const c = playersById.get(pid);
+          if (c) {
+            c.roomId = undefined;
+            c.isInLobby = true;
+          }
         }
         room.players = [];
+        room.aiPlayers = [];
         this.rooms.delete(room.roomId);
-      } else {
-        if (room.status === "game_over") {
-          room.status = "lobby";
-          room.game = undefined;
-        }
-        broadcastRoomSnapshot(room);
+        broadcastToLobby(getLobbyStateEvent());
+        return;
       }
+      if (room.status === "game_over") {
+        room.status = "lobby";
+        room.game = undefined;
+      }
+      broadcastRoomSnapshot(room);
       broadcastToLobby(getLobbyStateEvent());
     }
   }

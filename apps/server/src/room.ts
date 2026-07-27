@@ -88,13 +88,13 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
     setGamePlayerConnected(room, playerId, false);
     broadcastGameState(room, `Player ${playerId} left the room.`);
 
-    const connectedPlayers = room.players.filter((pid) => {
-      if (room.aiPlayers?.includes(pid)) return true;
+    const humanPlayerIds = room.players.filter(pid => !room.aiPlayers?.includes(pid));
+    const connectedHumans = humanPlayerIds.filter((pid) => {
       const c = playersById.get(pid);
       return c && !c.disconnectedAt;
     });
-    if (connectedPlayers.length <= 1) {
-      await dissolveRoom(room, "对局中玩家不足，房间已自动解散");
+    if (connectedHumans.length === 0) {
+      await dissolveRoom(room, "对局中无人类玩家，房间已自动解散");
       return;
     }
     broadcastToLobby(getLobbyStateEvent());
