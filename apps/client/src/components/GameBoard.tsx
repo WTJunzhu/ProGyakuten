@@ -804,11 +804,6 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   return (
     <div className="game-view" ref={gameViewRef} style={{ display: "grid", ...focusStyle }}>
-      {/* Portrait orientation hint for mobile */}
-      <div className="rotate-hint">
-        <div className="rotate-hint-icon">📱</div>
-        <div className="rotate-hint-text">请旋转设备至横屏模式</div>
-      </div>
       {/* Settlement overlay */}
       {gameOverState && (
         <div className={`settlement-overlay ${gameOverState.winnerTeam === myTeam ? "result-win" : "result-lose"}`} style={{ display: "flex" }}>

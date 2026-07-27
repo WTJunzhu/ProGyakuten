@@ -2222,40 +2222,6 @@ button:disabled {
   }
 }
 
-/* ─── Portrait rotation hint ─── */
-.rotate-hint {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  z-index: 9999;
-  background: rgba(0,0,0,0.92);
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-.rotate-hint-icon {
-  font-size: 48px;
-  animation: rotateHint 2s ease-in-out infinite;
-}
-.rotate-hint-text {
-  font-size: 16px;
-  color: #ccc;
-  font-weight: 600;
-}
-@keyframes rotateHint {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(90deg); }
-  50% { transform: rotate(90deg); }
-  75% { transform: rotate(0deg); }
-}
-/* Show hint only on narrow portrait screens */
-@media (max-width: 500px) and (orientation: portrait) {
-  .rotate-hint {
-    display: flex;
-  }
-}
-
 /* ─── Draw animation: flying card ─── */
 .draw-anim-card {
   border-radius: 6px;
