@@ -463,4 +463,41 @@ wss.on("connection", (ws) => {
   httpServer.listen(PORT, HOST, () => {
     console.log(`pro-gyakuten server running on http://${HOST}:${PORT}`);
   });
+
+  // ── Periodic zombie room sweep: dissolve rooms where owner is AI ──
+  setInterval(async () => {
+    const toDelete: string[] = [];
+    for (const room of roomManager.values()) {
+      const isOwnerAi = (room.aiPlayers ?? []).includes(room.ownerPlayerId);
+      if (isOwnerAi) {
+        console.log(`[zombie-sweep] Room ${room.roomId}: owner is AI (${room.ownerPlayerId}), dissolving`);
+        toDelete.push(room.roomId);
+      }
+    }
+    for (const roomId of toDelete) {
+      const room = roomManager.get(roomId);
+      if (!room) continue;
+      // Notify any remaining human players
+      for (const pid of room.players) {
+        if ((room.aiPlayers ?? []).includes(pid)) continue;
+        const conn = playersById.get(pid);
+        if (conn && !conn.disconnectedAt) {
+          conn.roomId = undefined;
+          conn.isInLobby = true;
+          send(conn.ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已自动解散" });
+        }
+      }
+      room.aiPlayers = [];
+      room.players = [];
+      room.game = undefined;
+      room.phase = undefined;
+      roomManager.delete(roomId);
+      await persistence.deleteRoom(roomId);
+      await persistence.deleteGameSnapshot(roomId);
+    }
+    if (toDelete.length > 0) {
+      console.log(`[zombie-sweep] Cleaned up ${toDelete.length} zombie room(s)`);
+      broadcastToLobby(getLobbyStateEvent());
+    }
+  }, 30_000);
 })();

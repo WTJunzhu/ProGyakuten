@@ -18,6 +18,32 @@ export function removePlayerFromLobbyRoom(room: RoomState, playerId: string): vo
   }
 }
 
+/** Check if a room's owner is AI — if so, dissolve immediately */
+export function checkAiOwnerAndDissolve(room: RoomState): boolean {
+  if ((room.aiPlayers ?? []).includes(room.ownerPlayerId)) {
+    console.log(`[ai-owner] Room ${room.roomId}: owner is AI (${room.ownerPlayerId}), dissolving`);
+    for (const pid of room.players) {
+      if ((room.aiPlayers ?? []).includes(pid)) continue;
+      const conn = playersById.get(pid);
+      if (conn && !conn.disconnectedAt) {
+        conn.roomId = undefined;
+        conn.isInLobby = true;
+        send(conn.ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已自动解散" });
+      }
+    }
+    room.aiPlayers = [];
+    room.players = [];
+    room.game = undefined;
+    room.phase = undefined;
+    roomManager.delete(room.roomId);
+    persistence.deleteRoom(room.roomId);
+    persistence.deleteGameSnapshot(room.roomId);
+    broadcastToLobby(getLobbyStateEvent());
+    return true;
+  }
+  return false;
+}
+
 async function dissolveRoom(room: RoomState, reason: string): Promise<void> {
   for (const pid of room.players) {
     const conn = playersById.get(pid);
@@ -58,6 +84,9 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
       room.status === "character_selection" || room.status === "game_intro") {
     removePlayerFromLobbyRoom(room, playerId);
 
+    // If AI became owner after human left, dissolve immediately
+    if (checkAiOwnerAndDissolve(room)) return;
+
     if (room.players.length === 0) {
       roomManager.delete(room.roomId);
       await persistence.deleteRoom(room.roomId);
@@ -97,6 +126,17 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
       await dissolveRoom(room, "对局中无人类玩家，房间已自动解散");
       return;
     }
+
+    // Transfer ownership if leaving player was owner
+    if (room.ownerPlayerId === playerId) {
+      room.ownerPlayerId = connectedHumans[0] ?? room.players[0] ?? "";
+      // If AI became owner, dissolve (swept by periodic check too, but dissolve now)
+      if ((room.aiPlayers ?? []).includes(room.ownerPlayerId)) {
+        await dissolveRoom(room, "对局中无人类玩家，房间已自动解散");
+        return;
+      }
+    }
+
     broadcastToLobby(getLobbyStateEvent());
   }
 }
