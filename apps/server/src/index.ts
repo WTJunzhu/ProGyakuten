@@ -52,17 +52,41 @@ async function restoreRooms(): Promise<void> {
     }
     roomManager.set(room.roomId, room);
   }
+
+  // ── Clean up zombie rooms: no human players (only AI left) ──
+  for (const room of roomManager.values()) {
+    const humanPlayers = room.players.filter(pid => !room.aiPlayers.includes(pid));
+    if (humanPlayers.length === 0 && room.players.length > 0) {
+      console.log(`[restore] Room ${room.roomId}: only AI players left, dissolving zombie room`);
+      room.aiPlayers = [];
+      room.players = [];
+      room.game = undefined;
+      room.phase = undefined;
+      room.status = "finished";
+      roomManager.delete(room.roomId);
+      await persistence.deleteRoom(room.roomId);
+      await persistence.deleteGameSnapshot(room.roomId);
+    } else if (humanPlayers.length === 0 && room.players.length === 0) {
+      // Empty room — also dissolve
+      console.log(`[restore] Room ${room.roomId}: empty room, dissolving`);
+      roomManager.delete(room.roomId);
+      await persistence.deleteRoom(room.roomId);
+      await persistence.deleteGameSnapshot(room.roomId);
+    }
+  }
+
   if (restoredRoomIds.length > 0) {
     console.log(`[restore] Restored ${restoredRoomIds.length} game(s). Waiting ${RECONNECT_GRACE_MS / 1000}s for reconnections...`);
     setTimeout(async () => {
       for (const roomId of restoredRoomIds) {
         const room = roomManager.get(roomId);
         if (!room) continue;
-        const hasConnected = room.players.some((pid) => {
+        const hasConnectedHuman = room.players.some((pid) => {
+          if (room.aiPlayers.includes(pid)) return false; // skip AI
           const conn = playersById.get(pid);
           return conn && !conn.disconnectedAt;
         });
-        if (!hasConnected) {
+        if (!hasConnectedHuman) {
           console.log(`[cleanup] Room ${roomId}: no players reconnected within grace period, dissolving`);
           room.players = [];
           roomManager.delete(roomId);
