@@ -115,7 +115,7 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
 
   if (room.status === "in_game") {
     setGamePlayerConnected(room, playerId, false);
-    broadcastGameState(room, `Player ${playerId} left the room.`);
+    broadcastGameState(room, `玩家 ${playerId} 离开房间`);
 
     const humanPlayerIds = room.players.filter(pid => !room.aiPlayers?.includes(pid));
     const connectedHumans = humanPlayerIds.filter((pid) => {

@@ -266,6 +266,7 @@ export interface DrawEventInfo {
   playerId: string;
   count: number;
   cards?: Card[];  // only visible to teammates; undefined for enemies
+  isReplenish?: boolean;  // true = 补牌 (打出功能牌后手牌只剩功能牌,需补摸)
 }
 
 export interface GameViewEventBase {

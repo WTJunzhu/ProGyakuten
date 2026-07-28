@@ -293,6 +293,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     endX: number;
     endY: number;
     started: boolean;    // true = transition to endX/endY started
+    isReplenishSelf?: boolean;  // 补牌自己视角（从右侧滑入）
   }>>([]);
 
   // Spawn flying cards from drawAnims queue
@@ -300,38 +301,67 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
     if (drawAnims.length === 0) return;
     const deckEl = tableCenterRef.current?.querySelector(".deck") as HTMLElement | null;
     const deckRect = deckEl?.getBoundingClientRect();
-    const startX = deckRect ? deckRect.left + deckRect.width / 2 - 20 : window.innerWidth / 2 - 20;
-    const startY = deckRect ? deckRect.top + deckRect.height / 2 - 30 : window.innerHeight / 2 - 30;
+    const deckX = deckRect ? deckRect.left + deckRect.width / 2 - 20 : window.innerWidth / 2 - 20;
+    const deckY = deckRect ? deckRect.top + deckRect.height / 2 - 30 : window.innerHeight / 2 - 30;
 
     const newFlying: typeof flyingCards = [];
     let flyingIdCounter = 0;
     for (const anim of drawAnims) {
-      // Find the opponent element for end position
-      const opponentEls = document.querySelectorAll(`[data-player-id="${anim.playerId}"]`);
-      const oppEl = opponentEls[0] as HTMLElement | null;
-      const oppRect = oppEl?.getBoundingClientRect();
-      const endX = oppRect ? oppRect.left + oppRect.width / 2 - 20 : startX;
-      const endY = oppRect ? oppRect.top + oppRect.height / 2 - 30 : startY;
+      const isSelf = anim.playerId === playerId;
+      const isReplenish = anim.isReplenish;
 
-      for (let i = 0; i < anim.count; i++) {
-        newFlying.push({
-          id: ++flyingIdCounter,
-          animId: anim.id,
-          index: i,
-          playerId: anim.playerId,
-          card: anim.cards?.[i],
-          startX,
-          startY,
-          endX,
-          endY,
-          started: false
-        });
+      if (isReplenish && isSelf) {
+        // 补牌自己视角：从屏幕右侧外滑入手牌最右侧
+        const handEl = document.querySelector(".hand-scroll") as HTMLElement | null;
+        const handRect = handEl?.getBoundingClientRect();
+        const endX = handRect ? handRect.right - 50 : window.innerWidth - 100;
+        const endY = handRect ? handRect.top + handRect.height / 2 - 30 : window.innerHeight - 80;
+        const startX = window.innerWidth + 20; // 从屏幕右侧外
+        const startY = endY;
+
+        for (let i = 0; i < anim.count; i++) {
+          newFlying.push({
+            id: ++flyingIdCounter,
+            animId: anim.id,
+            index: i,
+            playerId: anim.playerId,
+            card: anim.cards?.[i],
+            startX: startX + i * 5, // slight offset for stagger
+            startY,
+            endX,
+            endY,
+            started: false,
+            isReplenishSelf: true
+          });
+        }
+      } else {
+        // 他人/敌方摸牌动画：从牌堆飞到对手区
+        const opponentEls = document.querySelectorAll(`[data-player-id="${anim.playerId}"]`);
+        const oppEl = opponentEls[0] as HTMLElement | null;
+        const oppRect = oppEl?.getBoundingClientRect();
+        const endX = oppRect ? oppRect.left + oppRect.width / 2 - 20 : deckX;
+        const endY = oppRect ? oppRect.top + oppRect.height / 2 - 30 : deckY;
+
+        for (let i = 0; i < anim.count; i++) {
+          newFlying.push({
+            id: ++flyingIdCounter,
+            animId: anim.id,
+            index: i,
+            playerId: anim.playerId,
+            card: anim.cards?.[i],
+            startX: deckX,
+            startY: deckY,
+            endX,
+            endY,
+            started: false
+          });
+        }
       }
     }
     setFlyingCards(prev => [...prev, ...newFlying]);
     // Clear the drawAnims queue after spawning
     useGameStore.setState({ drawAnims: [] });
-  }, [drawAnims]);
+  }, [drawAnims, playerId]);
 
   // Stagger: start each flying card 10ms apart, then remove after flight
   useEffect(() => {
@@ -850,7 +880,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             zIndex: 900,
             pointerEvents: "none",
             transition: fc.started ? "left 0.4s ease-out, top 0.4s ease-out, opacity 0.4s ease-out" : "none",
-            opacity: fc.started ? 0.6 : 0.9,
+            opacity: fc.isReplenishSelf ? (fc.started ? 1 : 0.9) : (fc.started ? 0.6 : 0.9),
             fontSize: fc.card ? undefined : 10,
           }}
         >
@@ -903,9 +933,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
                     <div className={`card small-card ${latestCard!.color}`}>
                       {cardFace(latestCard!)}
                     </div>
-                    {teammateCards.length > 1 && (
-                      <span className="hand-count-badge">+{teammateCards.length - 1}</span>
-                    )}
+                    <span className="hand-count-badge">{teammateCards.length}</span>
                   </div>
                   <button className="teammate-view-btn" onClick={() => setTeammateView(p.playerId)}>查看</button>
                 </div>

@@ -85,7 +85,7 @@ export function maybeFinishSnatchWindowEarly(room: RoomState, message?: string):
   const responders = getSnatchResponders(room);
   const skipped = new Set(room.phase.skippedSnatchPlayerIds ?? []);
   if (responders.length > 0 && responders.every((playerId) => skipped.has(playerId))) {
-    startMainTurn(room, message ?? "All other players skipped snatching.");
+    startMainTurn(room, message ?? "其他玩家均未抢牌，继续出牌");
     return true;
   }
   return false;

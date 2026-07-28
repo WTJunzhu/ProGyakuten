@@ -129,7 +129,7 @@ wss.on("connection", (ws) => {
     try {
       event = JSON.parse(raw.toString()) as ClientEvent;
     } catch {
-      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Invalid JSON" });
+      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "无效的JSON格式" });
       return;
     }
 
@@ -207,7 +207,7 @@ wss.on("connection", (ws) => {
 
     if (event.type === "leaveRoom") {
       if (!conn.playerId) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Not in a room" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "你不在任何房间中" });
         return;
       }
       await leaveRoom(conn, conn.playerId);
@@ -221,7 +221,7 @@ wss.on("connection", (ws) => {
         return;
       }
       if (roomManager.has(event.roomId)) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room ID already exists" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间ID已存在" });
         return;
       }
 
@@ -248,20 +248,20 @@ wss.on("connection", (ws) => {
       }
       const room = roomManager.get(event.roomId);
       if (!room) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room not found" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间不存在" });
         return;
       }
       if (room.status !== "lobby") {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Game already started" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "游戏已经开始" });
         return;
       }
       const playerId = conn.characterName;
       if (room.players.includes(playerId)) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Already joined" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "已经加入该房间" });
         return;
       }
       if (room.players.length >= 6) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room is full" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已满" });
         return;
       }
 
@@ -303,13 +303,13 @@ wss.on("connection", (ws) => {
     const roomId = conn.roomId;
     if (!roomId) {
       console.log(`[action] Player ${conn.playerId} sent ${event.type} but conn.roomId is undefined`);
-      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Not in a room" });
+      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "你不在任何房间中" });
       return;
     }
 
     const room = roomManager.get(roomId);
     if (!room) {
-      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room not found" });
+      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间不存在" });
       return;
     }
 
@@ -349,15 +349,15 @@ wss.on("connection", (ws) => {
 
     if (event.type === "startGame") {
       if (room.ownerPlayerId !== conn.playerId) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Only owner can start" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "只有房主可以开始游戏" });
         return;
       }
       if (room.status !== "lobby") {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Game already started" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "游戏已经开始" });
         return;
       }
       if (![2, 4, 6].includes(room.players.length)) {
-        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Need exactly 2, 4, or 6 players" });
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "需要2、4或6名玩家" });
         return;
       }
 

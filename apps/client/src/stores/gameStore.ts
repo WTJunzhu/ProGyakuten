@@ -143,6 +143,7 @@ interface GameState {
     count: number;
     currentIndex: number;
     cards?: Card[];  // teammate: card faces; enemy: undefined
+    isReplenish?: boolean;  // true = 补牌 (自己补牌也有动画)
   }>;
 
   nextSeq: () => number;
@@ -386,14 +387,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       case "statePatch": {
         const prev = get();
         // Create draw animations from drawEvents
+        // Skip own normal draws, but keep own replenish draws (补牌)
         const newDrawAnims = (event.drawEvents ?? [])
-          .filter(de => de.playerId !== prev.playerId)  // skip own draws
+          .filter(de => de.isReplenish || de.playerId !== prev.playerId)
           .map(de => ({
             id: ++drawAnimIdCounter,
             playerId: de.playerId,
             count: de.count,
             currentIndex: 0,
-            cards: de.cards
+            cards: de.cards,
+            isReplenish: !!de.isReplenish
           }));
         set({
           gameState: event.state,

@@ -26,7 +26,7 @@ export function markDisconnected(playerId: string): void {
       }
       if (room.status === "in_game") {
         setGamePlayerConnected(room, playerId, false);
-        broadcastGameState(room, `Player ${playerId} disconnected.`);
+        broadcastGameState(room, `玩家 ${playerId} 断开连接`);
       }
     }
   }
@@ -106,7 +106,7 @@ export function handleReconnect(conn: PlayerConn, ws: import("ws").WebSocket, ro
   const room = roomManager.get(roomId);
   if (!room) {
     console.log(`[reconnect] Room ${roomId} not found for player ${playerId}`);
-    send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "Room no longer exists. Returned to lobby." });
+    send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已不存在，已返回大厅" });
     send(ws, getLobbyStateEvent());
     return;
   }

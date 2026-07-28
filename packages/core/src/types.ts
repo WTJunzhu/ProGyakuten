@@ -53,6 +53,7 @@ export interface ActionResult {
   message?: string;
   drawnCard?: Card;
   announcements?: string[];
+  replenishCount?: number; // 补牌次数（打出功能牌后手牌只剩功能牌，需补摸直到出现数字牌）
 }
 
 export const COLORS: Exclude<CardColor, "wild">[] = ["red", "yellow", "blue", "green"];

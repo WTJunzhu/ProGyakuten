@@ -69,7 +69,8 @@ export function buildStateEvent(room: RoomState, playerId: string, message?: str
     return {
       playerId: de.playerId,
       count: de.count,
-      cards: isTeammate ? getPlayerHand(room.game!, de.playerId).slice(-de.count) : undefined
+      cards: isTeammate ? getPlayerHand(room.game!, de.playerId).slice(-de.count) : undefined,
+      isReplenish: de.isReplenish
     };
   });
   return {

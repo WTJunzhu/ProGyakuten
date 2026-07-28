@@ -28,14 +28,14 @@ export function applyPlayCard(
 
   const player = state.players[state.currentPlayerIndex];
   const cardIndex = player.hand.findIndex((card) => card.id === cardId);
-  if (cardIndex === -1) return { ok: false, code: "INVALID_CARD", message: "Card not in hand" };
+  if (cardIndex === -1) return { ok: false, code: "INVALID_CARD", message: "手牌中没有此牌" };
 
   const card = player.hand[cardIndex];
   if (card.kind === "wild") {
-    return { ok: false, code: "INVALID_CARD", message: "Wild must be played with another non-wild card" };
+    return { ok: false, code: "INVALID_CARD", message: "Wild牌需组合出牌" };
   }
   if (!isCardPlayable(state, card)) {
-    return { ok: false, code: "INVALID_CARD", message: "Card does not match top card" };
+    return { ok: false, code: "INVALID_CARD", message: "此牌不匹配弃牌堆顶" };
   }
 
   const previousCard = effectiveTopCard(state);
@@ -67,14 +67,14 @@ export function applySnatchCard(
   declaredColor?: Exclude<CardColor, "wild">
 ): ActionResult {
   const player = state.players.find((entry) => entry.playerId === playerId);
-  if (!player) return { ok: false, code: "INVALID_ACTION", message: "Player not found" };
+  if (!player) return { ok: false, code: "INVALID_ACTION", message: "玩家不存在" };
 
   const cardIndex = player.hand.findIndex((card) => card.id === cardId);
-  if (cardIndex === -1) return { ok: false, code: "INVALID_CARD", message: "Card not in hand" };
+  if (cardIndex === -1) return { ok: false, code: "INVALID_CARD", message: "手牌中没有此牌" };
 
   const card = player.hand[cardIndex];
   if (!isCardSnatchable(state, card)) {
-    return { ok: false, code: "INVALID_CARD", message: "Invalid snatch attempt" };
+    return { ok: false, code: "INVALID_CARD", message: "无效的抢牌" };
   }
 
   const previousCard = effectiveTopCard(state);
@@ -82,7 +82,7 @@ export function applySnatchCard(
   const playedCard = { ...card };
   if (card.kind === "wild_draw_four") {
     if (!declaredColor) {
-      return { ok: false, code: "INVALID_ACTION", message: "Wild Draw Four snatch requires choosing a color" };
+      return { ok: false, code: "INVALID_ACTION", message: "Wild +4抢牌需选择颜色" };
     }
     playedCard.color = declaredColor;
   }
@@ -122,17 +122,17 @@ export function applyComboPlay(
   const targetIdx = player.hand.findIndex((card) => card.id === targetCardId);
 
   if (wildIdx === -1 || targetIdx === -1 || wildIdx === targetIdx) {
-    return { ok: false, code: "INVALID_CARD", message: "Invalid cards for combo" };
+    return { ok: false, code: "INVALID_CARD", message: "无效的组合牌" };
   }
 
   const targetCard = player.hand[targetIdx];
   if (targetCard.kind === "wild" || targetCard.kind === "wild_draw_four") {
-    return { ok: false, code: "INVALID_CARD", message: "Wild can only be combined with a non-wild card" };
+    return { ok: false, code: "INVALID_CARD", message: "Wild牌只能与非Wild牌组合" };
   }
 
   const transformedCard: Card = { ...targetCard, color: declaredColor };
   if (!isComboPlayable(state, transformedCard)) {
-    return { ok: false, code: "INVALID_CARD", message: "Combined card does not match top card" };
+    return { ok: false, code: "INVALID_CARD", message: "组合牌不匹配弃牌堆顶" };
   }
 
   const previousCard = effectiveTopCard(state);
@@ -166,22 +166,22 @@ export function applyComboSnatch(
   declaredColor: Exclude<CardColor, "wild">
 ): ActionResult {
   const player = state.players.find((entry) => entry.playerId === playerId);
-  if (!player) return { ok: false, code: "INVALID_ACTION", message: "Player not found" };
+  if (!player) return { ok: false, code: "INVALID_ACTION", message: "玩家不存在" };
 
   const wildIdx = player.hand.findIndex((card) => card.id === wildCardId && card.kind === "wild");
   const targetIdx = player.hand.findIndex((card) => card.id === targetCardId);
   if (wildIdx === -1 || targetIdx === -1 || wildIdx === targetIdx) {
-    return { ok: false, code: "INVALID_CARD", message: "Invalid cards for combo snatch" };
+    return { ok: false, code: "INVALID_CARD", message: "无效的组合抢牌" };
   }
 
   const targetCard = player.hand[targetIdx];
   if (targetCard.kind === "wild" || targetCard.kind === "wild_draw_four") {
-    return { ok: false, code: "INVALID_CARD", message: "Wild can only be combined with a non-wild card" };
+    return { ok: false, code: "INVALID_CARD", message: "Wild牌只能与非Wild牌组合" };
   }
 
   const transformedCard: Card = { ...targetCard, color: declaredColor };
   if (!isExactSnatchMatch(state, transformedCard)) {
-    return { ok: false, code: "INVALID_CARD", message: "Combined snatch card must exactly match the top card" };
+    return { ok: false, code: "INVALID_CARD", message: "组合抢牌需精确匹配弃牌堆顶" };
   }
 
   const previousCard = effectiveTopCard(state);
@@ -277,7 +277,7 @@ export function applyCallUno(
 
 export function applyCheckUno(state: GameStateInternal, playerId: string): ActionResult {
   const player = state.players.find((entry) => entry.playerId === playerId);
-  if (!player) return { ok: false, code: "INVALID_ACTION", message: "Player not found" };
+  if (!player) return { ok: false, code: "INVALID_ACTION", message: "玩家不存在" };
   const announcements = applyUnoCheck(state, player);
   return { ok: true, announcements };
 }

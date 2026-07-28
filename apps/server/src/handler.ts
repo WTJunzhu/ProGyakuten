@@ -99,8 +99,8 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
     skipped.add(event.playerId);
     room.phase.skippedSnatchPlayerIds = Array.from(skipped);
 
-    if (!maybeFinishSnatchWindowEarly(room, `Player ${event.playerId} skipped snatching.`)) {
-      broadcastGameState(room, `Player ${event.playerId} skipped snatching.`);
+    if (!maybeFinishSnatchWindowEarly(room, `玩家 ${event.playerId} 未抢牌`)) {
+      broadcastGameState(room, `玩家 ${event.playerId} 未抢牌`);
     }
     return;
   }
@@ -210,6 +210,10 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
       rejectWith(result.message ?? "出牌失败", result.code === "INVALID_CARD" ? "INVALID_CARD" : "INVALID_ACTION");
       return;
     }
+    // Record replenish draw events (补牌)
+    if (result.replenishCount && result.replenishCount > 0) {
+      room.pendingDrawEvents.push({ playerId: event.playerId, count: result.replenishCount, drawnCardIds: [], isReplenish: true });
+    }
     const message = finalizeAction(room, result, `玩家 ${event.playerId} 出牌`);
     if (room.status === "in_game") startSnatchWindow(room, event.playerId, message ?? undefined);
     return;
@@ -228,6 +232,10 @@ export function handleAction(room: RoomState, event: ClientEvent): void {
     if (!result.ok) {
       rejectWith(result.message ?? "组合出牌失败");
       return;
+    }
+    // Record replenish draw events (补牌)
+    if (result.replenishCount && result.replenishCount > 0) {
+      room.pendingDrawEvents.push({ playerId: event.playerId, count: result.replenishCount, drawnCardIds: [], isReplenish: true });
     }
     const message = finalizeAction(room, result, `玩家 ${event.playerId} 使用 Wild 组合出牌`);
     if (room.status === "in_game") startSnatchWindow(room, event.playerId, message ?? undefined);

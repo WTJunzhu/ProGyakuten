@@ -130,17 +130,17 @@ export function advanceTurn(state: GameStateInternal, skipSteps = 1): void {
 
 export function validateCommon(state: GameStateInternal, playerId: string, turnId: number, seq: number): ActionResult {
   const current = state.players[state.currentPlayerIndex];
-  if (current.playerId !== playerId) return { ok: false, code: "NOT_YOUR_TURN", message: "Not your turn" };
-  if (state.turnId !== turnId) return { ok: false, code: "TURN_MISMATCH", message: "Turn mismatch" };
-  if (seq <= current.lastSeq) return { ok: false, code: "SEQ_MISMATCH", message: "Sequence mismatch" };
+  if (current.playerId !== playerId) return { ok: false, code: "NOT_YOUR_TURN", message: "不是你的回合" };
+  if (state.turnId !== turnId) return { ok: false, code: "TURN_MISMATCH", message: "回合不匹配" };
+  if (seq <= current.lastSeq) return { ok: false, code: "SEQ_MISMATCH", message: "序列不匹配" };
   current.lastSeq = seq;
   return { ok: true };
 }
 
 export function validatePlayerSeq(state: GameStateInternal, playerId: string, seq: number): ActionResult & { player?: PlayerState } {
   const player = state.players.find((entry) => entry.playerId === playerId);
-  if (!player) return { ok: false, code: "INVALID_ACTION", message: "Player not found" };
-  if (seq <= player.lastSeq) return { ok: false, code: "SEQ_MISMATCH", message: "Sequence mismatch" };
+  if (!player) return { ok: false, code: "INVALID_ACTION", message: "玩家不存在" };
+  if (seq <= player.lastSeq) return { ok: false, code: "SEQ_MISMATCH", message: "序列不匹配" };
   player.lastSeq = seq;
   return { ok: true, player };
 }
@@ -160,8 +160,8 @@ export function finishPlay(state: GameStateInternal, player: PlayerState, announ
     return { ok: true, announcements };
   }
 
-  replenishPlayerHand(state, player);
-  return { ok: true, announcements };
+  const newCards = replenishPlayerHand(state, player);
+  return { ok: true, announcements, replenishCount: newCards.length > 0 ? newCards.length : undefined };
 }
 
 export function markUnoStateAfterPlay(state: GameStateInternal, player: PlayerState): void {
