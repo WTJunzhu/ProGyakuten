@@ -53,23 +53,27 @@ async function restoreRooms(): Promise<void> {
     roomManager.set(room.roomId, room);
   }
 
-  // ── Clean up zombie rooms: no human players (only AI left) ──
+  // ── Clean up zombie rooms: no active human players ──
   const zombieRoomIds: string[] = [];
   for (const room of roomManager.values()) {
-    const humanPlayers = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
-    if (humanPlayers.length === 0) {
+    const humanPlayerIds = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
+    // A room is zombie if no human player has an active connection
+    const hasActiveHuman = humanPlayerIds.some(pid => {
+      const conn = playersById.get(pid);
+      return conn && !conn.disconnectedAt;
+    });
+    if (!hasActiveHuman && room.players.length > 0) {
       zombieRoomIds.push(room.roomId);
     }
   }
   for (const roomId of zombieRoomIds) {
     const room = roomManager.get(roomId);
     if (!room) continue;
-    console.log(`[restore] Room ${roomId}: no human players, dissolving zombie room (players=${room.players}, ai=${room.aiPlayers})`);
+    console.log(`[restore] Room ${roomId}: no active human players, dissolving zombie room (players=${room.players}, ai=${room.aiPlayers})`);
     room.aiPlayers = [];
     room.players = [];
     room.game = undefined;
     room.phase = undefined;
-    room.status = "finished";
     roomManager.delete(roomId);
     await persistence.deleteRoom(roomId);
     await persistence.deleteGameSnapshot(roomId);
@@ -464,29 +468,23 @@ wss.on("connection", (ws) => {
     console.log(`pro-gyakuten server running on http://${HOST}:${PORT}`);
   });
 
-  // ── Periodic zombie room sweep: dissolve rooms where owner is AI ──
+  // ── Periodic zombie room sweep: dissolve rooms with no active human players ──
   setInterval(async () => {
     const toDelete: string[] = [];
     for (const room of roomManager.values()) {
-      const isOwnerAi = (room.aiPlayers ?? []).includes(room.ownerPlayerId);
-      if (isOwnerAi) {
-        console.log(`[zombie-sweep] Room ${room.roomId}: owner is AI (${room.ownerPlayerId}), dissolving`);
+      const humanPlayerIds = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
+      const hasActiveHuman = humanPlayerIds.some(pid => {
+        const conn = playersById.get(pid);
+        return conn && !conn.disconnectedAt;
+      });
+      if (!hasActiveHuman && room.players.length > 0) {
         toDelete.push(room.roomId);
       }
     }
     for (const roomId of toDelete) {
       const room = roomManager.get(roomId);
       if (!room) continue;
-      // Notify any remaining human players
-      for (const pid of room.players) {
-        if ((room.aiPlayers ?? []).includes(pid)) continue;
-        const conn = playersById.get(pid);
-        if (conn && !conn.disconnectedAt) {
-          conn.roomId = undefined;
-          conn.isInLobby = true;
-          send(conn.ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已自动解散" });
-        }
-      }
+      console.log(`[zombie-sweep] Room ${roomId}: no active human players, dissolving (players=${room.players}, ai=${room.aiPlayers})`);
       room.aiPlayers = [];
       room.players = [];
       room.game = undefined;
