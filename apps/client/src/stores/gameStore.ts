@@ -482,15 +482,18 @@ export const useGameStore = create<GameState>((set, get) => ({
               }
             }
 
-            // 3) 累积加牌转移：drawCardStack 增加且顶牌为加牌/反转
+            // 3) 累积加牌聚焦：
+            //    - 打出 +2/+4 继续累积时聚焦（stack 从 >0 继续增加）
+            //    - 在加牌连锁中打出 reverse 时聚焦
+            //    - 第一张 +2/+4（prevStack=0→新进入累积）不聚焦
             const prevStack = prev.gameState?.drawCardStack ?? 0;
             const newStack = event.state.drawCardStack;
-            if (newStack > prevStack) {
-              const kind = event.state.topCard.kind;
-              if (kind === "reverse" || kind === "draw_two" || kind === "wild_draw_four") {
-                set({ focusTarget: { type: "discard", startedAt: Date.now() } });
-                setTimeout(() => set({ focusTarget: null }), 1500);
-              }
+            const topKind = event.state.topCard.kind;
+            const isDrawStackRise = newStack > prevStack && prevStack > 0; // 继续累积（非首张）
+            const isReverseInChain = topKind === "reverse" && newStack > 0; // 加牌连锁中打出反转
+            if (isDrawStackRise || isReverseInChain) {
+              set({ focusTarget: { type: "discard", startedAt: Date.now() } });
+              setTimeout(() => set({ focusTarget: null }), 1500);
             }
           }
         }
