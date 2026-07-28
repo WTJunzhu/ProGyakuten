@@ -388,7 +388,8 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
 
   useEffect(() => {
     if (!focusTarget || !gameViewRef.current) {
-      setFocusStyle({});
+      // Smoothly return to default position (not instant jump)
+      setFocusStyle({ transform: "scale(1) translate(0px, 0px)" });
       return;
     }
 
@@ -401,9 +402,15 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       const r = targetEl.getBoundingClientRect();
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
-      // translate needed to center (cx, cy) after scale
-      const tx = -(cx - viewRect.left - viewRect.width / 2);
-      const ty = -(cy - viewRect.top - viewRect.height / 2);
+      // CSS transform applies right-to-left: scale first, then translate.
+      // We want point (cx, cy) to map to viewport center after transform.
+      // After scale(s): point becomes (s*cx + s*tx, s*cy + s*ty) if translate applied first.
+      // Actually CSS applies in order: translate moves to (cx+tx, cy+ty), then scale to (s*(cx+tx), s*(cy+ty)).
+      // We want s*(cx+tx) = vw/2 → tx = vw/2/s - cx
+      const vw = viewRect.left + viewRect.width / 2;
+      const vh = viewRect.top + viewRect.height / 2;
+      const tx = vw / scale - cx;
+      const ty = vh / scale - cy;
       return { transform: `scale(${scale}) translate(${tx}px, ${ty}px)` };
     };
 
@@ -416,7 +423,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
       const playerId_f = focusTarget.playerId;
       if (playerId_f === playerId) {
         // 自己不用放大（UNO 场景不会触发，但兜底）
-        setFocusStyle({});
+        setFocusStyle({ transform: "scale(1) translate(0px, 0px)" });
       } else {
         const oppEl = viewEl.querySelector(`[data-player-id="${playerId_f}"]`) as HTMLElement | null;
         setFocusStyle(computeTransformForTarget(oppEl));
