@@ -173,7 +173,7 @@ function CharacterPanel({
 const MIN_VISIBLE = 28;
 const MAX_VISIBLE = 92;
 const CARD_WIDTH = 80;
-const MAX_SCALE = 1.48;
+const MAX_SCALE = 1.2;
 const SCALE_SIGMA = 72;
 
 interface CardLayout {
@@ -222,7 +222,7 @@ function computeCardLayouts(
       const extra = (maxS - 1) * Math.exp(-(dist * dist) / (2 * sigma * sigma));
       scale = 1 + extra;
       zIndex = dist < cw * 1.2 ? count + 10 : i;
-      liftY = -(scale - 1) * 34;
+      liftY = -(scale - 1) * 24;
     }
 
     layouts.push({ left: accLeft, scale, zIndex, liftY });
@@ -853,6 +853,7 @@ export function GameBoard({ wsSend, logCollapsed = false }: Props) {
             </div>
             <div className="settlement-actions">
               <button onClick={() => {
+                wsSend({ type: "restartRoom" });
                 useGameStore.getState().resetGame();
                 useGameStore.getState().setView("room");
               }}>再来一局</button>

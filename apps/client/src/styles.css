@@ -723,6 +723,8 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 12px;
+  position: relative;
+  z-index: 0;
 }
 
 .status-badge {
@@ -738,7 +740,8 @@ button:disabled {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 8px 12px 2px;
+  padding: 30px 12px 2px;
+  z-index: 1;
 }
 
 .hand-container {
@@ -1285,7 +1288,7 @@ button:disabled {
     font-size: 13px;
   }
 
-  .hand-scroll { padding: 4px 6px 0; }
+  .hand-scroll { padding: 20px 6px 0; z-index: 1; }
 
   .hand-container {
     height: var(--card-height);
@@ -1807,7 +1810,6 @@ button:disabled {
   z-index: 150;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   transition: transform 0.15s, box-shadow 0.15s;
-  position: fixed;  /* 确保 fixed */
 }
 
 .chat-fab:hover {
@@ -2153,7 +2155,8 @@ button:disabled {
   .card .corner { font-size: 7px; }
 
   .hand-scroll {
-    padding: 2px 4px 0;
+    padding: 18px 4px 0;
+    z-index: 1;
   }
   .hand-container {
     height: var(--card-height);
@@ -2163,6 +2166,7 @@ button:disabled {
   .toolbar {
     flex-wrap: wrap;
     gap: 4px;
+    z-index: 0;
   }
   .toolbar button {
     padding: 6px 8px;

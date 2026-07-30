@@ -225,6 +225,10 @@ export interface TeamChatEvent {
   message: string;
 }
 
+export interface RestartRoomEvent {
+  type: "restartRoom";
+}
+
 export type ClientEvent =
   | CreateRoomEvent
   | JoinRoomEvent
@@ -252,7 +256,8 @@ export type ClientEvent =
   | RemoveAiPlayerEvent
   | JoinRoomAsSpectatorEvent
   | LeaveSpectatorEvent
-  | TeamChatEvent;
+  | TeamChatEvent
+  | RestartRoomEvent;
 
 export interface RoomSnapshotEvent {
   type: "roomSnapshot";

@@ -352,7 +352,7 @@ wss.on("connection", (ws) => {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "只有房主可以开始游戏" });
         return;
       }
-      if (room.status !== "lobby") {
+      if (room.status !== "lobby" && room.status !== "game_over") {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "游戏已经开始" });
         return;
       }
@@ -373,6 +373,23 @@ wss.on("connection", (ws) => {
       }
       if (!conn.playerId) return;
       handleSelectGameCharacter(room, conn.playerId, event.characterId);
+      return;
+    }
+
+    // 再来一局：将 game_over 状态重置为 lobby
+    if (event.type === "restartRoom") {
+      if (room.status !== "game_over") {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "当前不在游戏结束状态" });
+        return;
+      }
+      room.status = "lobby";
+      room.game = undefined;
+      room.phase = undefined;
+      room.drawnCardWindow = undefined;
+      room.pendingDrawEvents = [];
+      broadcastRoomSnapshot(room);
+      broadcastToLobby(getLobbyStateEvent());
+      await persistence.saveRoom(room);
       return;
     }
 

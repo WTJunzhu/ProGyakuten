@@ -19,7 +19,7 @@ export function ChatWindow({ wsSend }: Props) {
   const playerId     = useGameStore((s) => s.playerId);
   const gameState    = useGameStore((s) => s.gameState);
 
-  const [collapsed, setCollapsed]     = useState(false);
+  const [collapsed, setCollapsed]     = useState(true);
   const [activeTab, setActiveTab]     = useState<ChatScope>("room");
   const [input, setInput]             = useState("");
   const [unreadRoom, setUnreadRoom]   = useState(0);
