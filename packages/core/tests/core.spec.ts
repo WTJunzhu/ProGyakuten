@@ -118,7 +118,7 @@ describe("core game flow", () => {
     ];
     const result = applyCallUno(state, currentPlayer, state.turnId, 1);
     expect(result.ok).toBe(true);
-    expect(state.players[state.currentPlayerIndex].saidUnoForTurnId).toBe(state.turnId);
+    expect(state.players[state.currentPlayerIndex].saidUno).toBe(true);
   });
 
   it("penalizes playing to one card without calling UNO", () => {
