@@ -40,3 +40,6 @@ npm-debug.log*
 
 # Claude Code
 .claude/
+
+
+不要push到git
