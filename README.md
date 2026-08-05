@@ -126,7 +126,7 @@ ProGyakuten/
 │           ├── stores/       # Zustand 状态管理
 │           ├── presentation/ # 演出系统（BGM/SFX/视频/聚焦动画）
 │           └── audio.ts     # 音频控制器
-└── 设计文档（12 份）
+└── docs/                    # 补充文档
 ```
 
 ---
@@ -281,22 +281,13 @@ sequenceDiagram
 
 ---
 
-## 设计文档
+## 文档
 
 | 文档 | 内容 |
 |------|------|
 | [逆转Uno游戏规则全集.md](逆转Uno游戏规则全集.md) | 完整游戏规则形式化 |
-| [演出系统设计文档.md](演出系统设计文档.md) | 演出层架构（BGM/SFX/视频/背景） |
-| [AI对手系统设计文档.md](AI对手系统设计文档.md) | AI 规则引擎设计 |
-| [聊天系统设计文档.md](聊天系统设计文档.md) | 队内/全员聊天 |
-| [观战系统设计文档.md](观战系统设计文档.md) | 观战功能 |
-| [角色系统设计文档.md](角色系统设计文档.md) | 角色技能系统 |
-| [好友系统设计文档.md](好友系统设计文档.md) | 好友系统 |
-| [前端优化说明.md](前端优化说明.md) | 前端优化待办清单 |
-| [重构优化策略.md](重构优化策略.md) | 重构方法论 |
-| [docs/deployment-and-guidelines.md](docs/deployment-and-guidelines.md) | 部署记录 & 开发规范 |
+| [docs/规则说明.md](docs/规则说明.md) | 规则快速入门（精简版） |
 | [docs/benchmark.md](docs/benchmark.md) | 性能压测报告 |
-| [docs/netcode_notes.md](docs/netcode_notes.md) | 网络模型笔记 |
 
 ---
 
