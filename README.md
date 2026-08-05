@@ -5,7 +5,7 @@
 [![CI](https://github.com/WTJunzhu/ProGyakuten/actions/workflows/ci.yml/badge.svg)](https://github.com/WTJunzhu/ProGyakuten/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> 🎮 **在线试玩**：`pro-gyakuten-client.vercel.app` — 注册 → 选角色 → 建房间 → 开局
+> 🎮 **在线试玩**：`pro-gyakuten-client.vercel.app` — 注册 → 建房间 → 开局
 
 ---
 
@@ -66,8 +66,8 @@ graph TB
 ### 🤖 AI 本地规则引擎（非 LLM），决策延迟 < 50ms
 基于局面评估的确定性策略引擎，`strategy.ts` 枚举所有合法决策并按启发式排序。无需 API 调用、无延迟波动、可离线运行、完全可调试。
 
-### 🎯 可配置规则 + Hook 注入的角色技能系统
-`GameRuleConfig` 暴露 20+ 可调参数（手牌上限、超时、洗牌种子等），`GameRuleHookSet` 提供 `beforePenaltyDraw` / `afterCardPlayed` / `resolveUnoPenalty` 等 hook 点。3 个原创角色技能通过 hooks 注入，无需改动核心引擎。
+### 🎯 可配置规则 + Hook 注入的扩展系统
+`GameRuleConfig` 暴露 20+ 可调参数（手牌上限、超时、洗牌种子等），`GameRuleHookSet` 提供 `beforePenaltyDraw` / `afterCardPlayed` / `resolveUnoPenalty` 等 hook 点，新玩法可通过 hooks 注入而无需改动核心引擎。
 
 ---
 
@@ -84,7 +84,7 @@ graph TB
 | **爆牌判负** | 手牌 ≥ 20 张直接判输，杜绝拖延战术 |
 | **补牌机制** | 出牌后若手牌无数牌，自动补摸直到出现数字牌 |
 
-完整规则见 [逆转Uno游戏规则全集.md](逆转Uno游戏规则全集.md)
+完整规则见 [逆转Uno游戏规则全集.md](逆转Uno游戏规则全集.md) | 快速入门见 [docs/规则说明.md](docs/规则说明.md)
 
 ---
 
@@ -110,8 +110,7 @@ ProGyakuten/
 │       ├── src/actions.ts   # 出牌/抢牌/摸牌/UNO 等动作
 │       ├── src/engine/      # 状态机（抽牌、回合推进、序列化）
 │       ├── src/rules/       # 各牌种效果 + 出牌合法性判定
-│       ├── src/characters/  # 角色技能系统（Hook 注入）
-│       └── src/modifiers/   # 可配置规则参数
+│       ├── src/modifiers/   # 可配置规则参数
 ├── apps/
 │   ├── server/              # WebSocket 游戏服务器
 │   │   └── src/
@@ -261,10 +260,9 @@ sequenceDiagram
 - ✅ 全员聊天
 - ✅ 默认收起 + 未读红点提示
 
-### 账户 & 角色
+### 账户
 - ✅ 注册/登录（scrypt 密码加密）
 - ✅ 角色系统（每账户 3 槽位，等级/胜负统计）
-- ✅ 角色技能系统（3 个原创角色，Hook 注入）
 
 ### UI & 体验
 - ✅ Mac Dock 风格手牌高斯放大算法
@@ -285,8 +283,7 @@ sequenceDiagram
 
 | 文档 | 内容 |
 |------|------|
-| [逆转Uno游戏规则全集.md](逆转Uno游戏规则全集.md) | 完整游戏规则形式化 |
-| [docs/规则说明.md](docs/规则说明.md) | 规则快速入门（精简版） |
+| [逆转Uno游戏规则全集.md](逆转Uno游戏规则全集.md) | 完整游戏规则 |
 | [docs/benchmark.md](docs/benchmark.md) | 性能压测报告 |
 
 ---
