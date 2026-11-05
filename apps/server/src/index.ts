@@ -11,6 +11,7 @@ import { broadcastRoomSnapshot, leaveRoom } from "./room.js";
 import { getAllowedActions } from "./actions.js";
 import { handleAction } from "./handler.js";
 import { handleReconnect, handleDisconnect } from "./connection.js";
+import { schedulePhaseTimeout, scheduleSnatchAutoSkip } from "./phase.js";
 import { persistence, db } from "./db.js";
 import { register, login, verifyToken, setTokenCharacter } from "./auth.js";
 import { listCharacters, createCharacter } from "./character.js";
@@ -18,11 +19,12 @@ import { startCharacterDraft, handleSelectGameCharacter, launchGame } from "./ch
 import { handleJoinRoomAsSpectator, handleLeaveSpectator } from "./spectator.js";
 
 const MAX_CHARACTERS = 3;
+const startupGraceUntil = Date.now() + RECONNECT_GRACE_MS;
 
 // Restore rooms on startup
 async function restoreRooms(): Promise<void> {
   await persistence.init();
-
+  await persistence.deleteExpiredAuthTokens(Date.now());
   const rooms = await persistence.loadAllRooms();
   const restoredRoomIds: string[] = [];
   for (const room of rooms) {
@@ -41,7 +43,17 @@ async function restoreRooms(): Promise<void> {
         room.phase = snapshot.phase;
         room.phaseToken = 0;
         room.drawnCardWindow = undefined;
+        for (const player of room.game.players) player.connected = false;
         roomManager.set(room.roomId, room);
+        if (!room.phase) {
+          room.phase = { phase: "turn_main", actingPlayerId: room.game.players[room.game.currentPlayerIndex].playerId, endsAt: Date.now() + 30000 };
+        }
+        if (room.phase.phase === "post_draw_window") {
+          room.phase = { phase: "turn_main", actingPlayerId: room.game.players[room.game.currentPlayerIndex].playerId, endsAt: Date.now() + 30000 };
+        }
+        room.phase.endsAt = Math.max(room.phase.endsAt, Date.now() + RECONNECT_GRACE_MS);
+        schedulePhaseTimeout(room.roomId, room.phaseToken);
+        if (room.phase.phase === "snatch_window") scheduleSnatchAutoSkip(room.roomId, room.phaseToken);
         restoredRoomIds.push(room.roomId);
         console.log(`[restore] Room ${room.roomId}: status=${room.status}, players=${room.players}, game.turnId=${room.game.turnId}, game.currentPlayerIndex=${room.game.currentPlayerIndex}, phase=${room.phase?.phase}, drawPile=${room.game.drawPile.length}, discardPile=${room.game.discardPile.length}`);
         continue;
@@ -51,35 +63,6 @@ async function restoreRooms(): Promise<void> {
       room.game = undefined;
     }
     roomManager.set(room.roomId, room);
-  }
-
-  // ── Clean up zombie rooms: no active human players ──
-  const zombieRoomIds: string[] = [];
-  for (const room of roomManager.values()) {
-    const humanPlayerIds = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
-    // A room is zombie if no human player has an active connection
-    const hasActiveHuman = humanPlayerIds.some(pid => {
-      const conn = playersById.get(pid);
-      return conn && !conn.disconnectedAt;
-    });
-    if (!hasActiveHuman && room.players.length > 0) {
-      zombieRoomIds.push(room.roomId);
-    }
-  }
-  for (const roomId of zombieRoomIds) {
-    const room = roomManager.get(roomId);
-    if (!room) continue;
-    console.log(`[restore] Room ${roomId}: no active human players, dissolving zombie room (players=${room.players}, ai=${room.aiPlayers})`);
-    room.aiPlayers = [];
-    room.players = [];
-    room.game = undefined;
-    room.phase = undefined;
-    roomManager.delete(roomId);
-    await persistence.deleteRoom(roomId);
-    await persistence.deleteGameSnapshot(roomId);
-  }
-  if (zombieRoomIds.length > 0) {
-    console.log(`[restore] Cleaned up ${zombieRoomIds.length} zombie room(s)`);
   }
 
   if (restoredRoomIds.length > 0) {
@@ -134,6 +117,10 @@ wss.on("connection", (ws) => {
     }
 
     conn.lastSeenAt = Date.now();
+    if (conn.playerId && playersById.get(conn.playerId) !== conn) {
+      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "连接已失效" });
+      return;
+    }
 
     // --- Connection-level events ---
     if (event.type === "requestLobbyState") {
@@ -165,6 +152,18 @@ wss.on("connection", (ws) => {
     // --- Character events (require auth) ---
     if (event.type === "listCharacters") {
       if (!conn.accountId) {
+        const auth = await verifyToken(event.token);
+        if (auth) {
+          conn.token = event.token;
+          conn.accountId = auth.accountId;
+          const character = auth.characterId ? await persistence.getCharacter(auth.characterId) : null;
+          if (character?.accountId === auth.accountId) {
+            conn.characterId = character.characterId;
+            conn.characterName = character.displayName;
+          }
+        }
+      }
+      if (!conn.accountId) {
         send(ws, { type: "characterList", characters: [], maxSlots: MAX_CHARACTERS });
         return;
       }
@@ -174,6 +173,13 @@ wss.on("connection", (ws) => {
     }
 
     if (event.type === "createCharacter") {
+      if (!conn.accountId) {
+        const auth = await verifyToken(event.token);
+        if (auth) {
+          conn.token = event.token;
+          conn.accountId = auth.accountId;
+        }
+      }
       if (!conn.accountId) {
         send(ws, { type: "characterCreated", ok: false, error: "未登录" });
         return;
@@ -188,6 +194,13 @@ wss.on("connection", (ws) => {
     }
 
     if (event.type === "selectCharacter") {
+      if (!conn.accountId) {
+        const auth = await verifyToken(event.token);
+        if (auth) {
+          conn.token = event.token;
+          conn.accountId = auth.accountId;
+        }
+      }
       if (!conn.accountId || !conn.token) {
         send(ws, { type: "characterSelected", ok: false, error: "未登录" });
         return;
@@ -200,7 +213,7 @@ wss.on("connection", (ws) => {
       }
       conn.characterId = character.characterId;
       conn.characterName = character.displayName;
-      setTokenCharacter(conn.token, character.characterId);
+      await setTokenCharacter(conn.token, character.characterId);
       send(ws, { type: "characterSelected", ok: true, characterId: character.characterId, displayName: character.displayName });
       return;
     }
@@ -226,6 +239,10 @@ wss.on("connection", (ws) => {
       }
 
       const playerId = conn.characterName;
+      if (playersById.has(playerId) || Array.from(roomManager.values()).some(room => room.players.includes(playerId))) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "该角色名已被使用" });
+        return;
+      }
       conn.playerId = playerId;
       conn.roomId = event.roomId;
       conn.isInLobby = false;
@@ -235,6 +252,7 @@ wss.on("connection", (ws) => {
       const room = roomManager.createRoom(event.roomId, playerId);
       roomManager.set(room.roomId, room);
       await persistence.saveRoom(room);
+      await persistence.saveSeatOwner(event.roomId, playerId, conn.characterId);
       await persistence.savePlayerSession(playerId, event.roomId);
       send(ws, roomSnapshot(room));
       broadcastToLobby(getLobbyStateEvent());
@@ -260,6 +278,10 @@ wss.on("connection", (ws) => {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "已经加入该房间" });
         return;
       }
+      if (playersById.has(playerId) || Array.from(roomManager.values()).some(room => room.players.includes(playerId))) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "该角色名已被使用" });
+        return;
+      }
       if (room.players.length >= 6) {
         send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "房间已满" });
         return;
@@ -273,6 +295,7 @@ wss.on("connection", (ws) => {
 
       roomManager.addPlayer(room, playerId);
       await persistence.saveRoom(room);
+      await persistence.saveSeatOwner(event.roomId, playerId, conn.characterId);
       await persistence.savePlayerSession(playerId, event.roomId);
       broadcastRoomSnapshot(room);
       broadcastToLobby(getLobbyStateEvent());
@@ -280,6 +303,20 @@ wss.on("connection", (ws) => {
     }
 
     if (event.type === "reconnect") {
+      const auth = await verifyToken(event.token);
+      const character = auth?.characterId ? await persistence.getCharacter(auth.characterId) : null;
+      const room = roomManager.get(event.roomId);
+      const seatOwner = await persistence.getSeatOwner(event.roomId, event.playerId);
+      if (!auth || !character || character.accountId !== auth.accountId ||
+          character.displayName !== event.playerId || seatOwner !== character.characterId ||
+          !room?.players.includes(event.playerId) || room.aiPlayers.includes(event.playerId)) {
+        send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "无法验证原有座位，请重新登录" });
+        return;
+      }
+      conn.token = event.token;
+      conn.accountId = auth.accountId;
+      conn.characterId = character.characterId;
+      conn.characterName = character.displayName;
       handleReconnect(conn, ws, event.roomId, event.playerId);
       await persistence.savePlayerSession(event.playerId, event.roomId);
       return;
@@ -458,6 +495,11 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if ("playerId" in event && event.playerId !== conn.playerId) {
+      send(ws, { type: "actionRejected", code: "INVALID_ACTION", message: "玩家身份不匹配" });
+      return;
+    }
+
     // Game actions
     handleAction(room, event);
 
@@ -472,7 +514,9 @@ wss.on("connection", (ws) => {
 
   ws.on("close", async () => {
     if (conn.playerId) {
-      await persistence.savePlayerSession(conn.playerId, null);
+      if (playersById.get(conn.playerId) === conn) {
+        await persistence.savePlayerSession(conn.playerId, null);
+      }
     }
     handleDisconnect(conn);
   });
@@ -487,14 +531,20 @@ wss.on("connection", (ws) => {
 
   // ── Periodic zombie room sweep: dissolve rooms with no active human players ──
   setInterval(async () => {
+    await persistence.deleteExpiredAuthTokens(Date.now());
     const toDelete: string[] = [];
     for (const room of roomManager.values()) {
+      if (Date.now() < startupGraceUntil) break;
       const humanPlayerIds = room.players.filter(pid => !(room.aiPlayers ?? []).includes(pid));
       const hasActiveHuman = humanPlayerIds.some(pid => {
         const conn = playersById.get(pid);
         return conn && !conn.disconnectedAt;
       });
-      if (!hasActiveHuman && room.players.length > 0) {
+      const hasRecentDisconnect = humanPlayerIds.some(pid => {
+        const disconnectedAt = playersById.get(pid)?.disconnectedAt;
+        return disconnectedAt && Date.now() - disconnectedAt < RECONNECT_GRACE_MS;
+      });
+      if (!hasActiveHuman && !hasRecentDisconnect && room.players.length > 0) {
         toDelete.push(room.roomId);
       }
     }

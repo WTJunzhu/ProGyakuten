@@ -82,7 +82,7 @@ export default function App() {
       if (state.token && state.selectedCharacterId) {
         const savedRoomId = state.savedRoomId;
         if (savedRoomId) {
-          ws.send({ type: "reconnect", roomId: savedRoomId, playerId: state.selectedCharacterName ?? "" });
+          ws.send({ type: "reconnect", roomId: savedRoomId, playerId: state.selectedCharacterName ?? "", token: state.token });
           setView("room");
         } else {
           ws.send({ type: "listCharacters", token: state.token });

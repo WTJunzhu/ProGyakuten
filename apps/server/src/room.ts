@@ -83,6 +83,7 @@ export async function leaveRoom(conn: PlayerConn, playerId: string): Promise<voi
   if (room.status === "lobby" || room.status === "game_over" ||
       room.status === "character_selection" || room.status === "game_intro") {
     removePlayerFromLobbyRoom(room, playerId);
+    await persistence.deleteSeatOwner(roomId, playerId);
 
     // If AI became owner after human left, dissolve immediately
     if (checkAiOwnerAndDissolve(room)) return;

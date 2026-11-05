@@ -1,35 +1,61 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import WebSocket from "ws";
 import type { ServerEvent, ClientEvent } from "@pro-gyakuten/protocol";
+import { isCardPlayableLite } from "@pro-gyakuten/core";
 
-const TEST_PORT = Number(process.env.TEST_PORT ?? "3999");
-const WS_URL = `ws://localhost:${TEST_PORT}`;
+let server: ChildProcess;
+let dataDir: string;
+let testPort: number;
+let wsUrl: string;
 
-let serverAvailable = false;
+async function openClient(): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    ws.once("open", () => resolve(ws));
+    ws.once("error", reject);
+  });
+}
 
-// Check synchronously-ish via a flag set before tests run
-const checkDone = (async () => {
-  try {
-    const ws = await new Promise<WebSocket>((resolve, reject) => {
-      const w = new WebSocket(WS_URL);
-      w.on("open", () => resolve(w));
-      w.on("error", () => reject());
-      setTimeout(() => reject(), 2000);
-    });
-    serverAvailable = true;
-    ws.close();
-  } catch {
-    serverAvailable = false;
+async function startServer(): Promise<void> {
+  server = spawn(process.execPath, [join(import.meta.dirname, "../dist/index.js")], {
+    env: { ...process.env, PORT: String(testPort), HOST: "127.0.0.1", TURSO_URL: `file:${join(dataDir, "game.db")}`, RECONNECT_GRACE_MS: "4000" },
+    stdio: "ignore"
+  });
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (server.exitCode !== null) throw new Error(`Server exited: ${server.exitCode}`);
+    try {
+      const ws = await openClient();
+      ws.close();
+      return;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
   }
-})();
+  throw new Error("Server did not start");
+}
+
+beforeAll(async () => {
+  dataDir = mkdtempSync(join(tmpdir(), "gyakuten-test-"));
+  const listener = createServer();
+  await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
+  testPort = (listener.address() as { port: number }).port;
+  wsUrl = `ws://127.0.0.1:${testPort}`;
+  await new Promise<void>(resolve => listener.close(() => resolve()));
+  await startServer();
+}, 15000);
+
+afterAll(() => {
+  server?.kill();
+  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+});
 
 function createClient(): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(WS_URL);
-    ws.on("open", () => resolve(ws));
-    ws.on("error", () => reject(new Error("Connection failed")));
-    setTimeout(() => reject(new Error("Connection timeout")), 3000);
-  });
+  return openClient();
 }
 
 function sendEvent(ws: WebSocket, event: ClientEvent): void {
@@ -77,6 +103,7 @@ async function setupCharacter(client: WebSocket, username: string, charName: str
   const authResult = await waitForEvent(client, "authResult");
   expect(authResult.type).toBe("authResult");
   expect((authResult as any).ok).toBe(true);
+  (client as any).__token = (authResult as any).token;
 
   // List characters
   sendEvent(client, { type: "listCharacters", token: (authResult as any).token });
@@ -93,10 +120,46 @@ async function setupCharacter(client: WebSocket, username: string, charName: str
   expect((selected as any).ok).toBe(true);
 }
 
-await checkDone;
-
-describe.skipIf(!serverAvailable)("Server integration", () => {
+describe("Server integration", () => {
   describe("Room lifecycle", () => {
+    it("requires the original character token to recover a seat", async () => {
+      const roomId = `room_reconnect_${Date.now()}`;
+      const owner = await createClient();
+      sendEvent(owner, { type: "register", username: `owner_${Date.now()}`, password: "test123" });
+      const auth = await waitForEvent(owner, "authResult");
+      if (auth.type !== "authResult" || !auth.token) throw new Error("registration failed");
+      sendEvent(owner, { type: "createCharacter", token: auth.token, displayName: "ReconnectOwner" });
+      const created = await waitForEvent(owner, "characterCreated");
+      if (created.type !== "characterCreated" || !created.character) throw new Error("character creation failed");
+      sendEvent(owner, { type: "selectCharacter", token: auth.token, characterId: created.character.characterId });
+      await waitForEvent(owner, "characterSelected");
+      sendEvent(owner, { type: "createRoom", roomId, playerId: "ReconnectOwner" });
+      await waitForEvent(owner, "roomSnapshot");
+
+      const impostor = await createClient();
+      sendEvent(impostor, { type: "reconnect", roomId, playerId: "ReconnectOwner", token: "invalid" });
+      expect((await waitForEvent(impostor, "actionRejected")).type).toBe("actionRejected");
+      sendEvent(impostor, { type: "register", username: `impostor_${Date.now()}`, password: "test123" });
+      const impostorAuth = await waitForEvent(impostor, "authResult");
+      if (impostorAuth.type !== "authResult" || !impostorAuth.token) throw new Error("registration failed");
+      sendEvent(impostor, { type: "createCharacter", token: impostorAuth.token, displayName: "ReconnectOwner" });
+      const impostorCharacter = await waitForEvent(impostor, "characterCreated");
+      if (impostorCharacter.type !== "characterCreated" || !impostorCharacter.character) throw new Error("character creation failed");
+      sendEvent(impostor, { type: "selectCharacter", token: impostorAuth.token, characterId: impostorCharacter.character.characterId });
+      await waitForEvent(impostor, "characterSelected");
+      sendEvent(impostor, { type: "reconnect", roomId, playerId: "ReconnectOwner", token: impostorAuth.token });
+      expect((await waitForEvent(impostor, "actionRejected")).type).toBe("actionRejected");
+
+      const recovered = await createClient();
+      sendEvent(recovered, { type: "reconnect", roomId, playerId: "ReconnectOwner", token: auth.token });
+      expect((await waitForEvent(recovered, "roomSnapshot")).type).toBe("roomSnapshot");
+      owner.close();
+      sendEvent(recovered, { type: "requestLobbyState" });
+      expect((await waitForEvent(recovered, "lobbyState")).type).toBe("lobbyState");
+      impostor.close();
+      recovered.close();
+    });
+
     it("create room and receive roomSnapshot", async () => {
       const client = await createClient();
       await setupCharacter(client, `test_room_${Date.now()}`, "Alice");
@@ -162,6 +225,83 @@ describe.skipIf(!serverAvailable)("Server integration", () => {
   });
 
   describe("Game flow", () => {
+    it("restores an active game after a player reconnects", async () => {
+      const roomId = `room_game_reconnect_${Date.now()}`;
+      const p1 = await createClient();
+      const p2 = await createClient();
+      await setupCharacter(p1, `test_game_reconnect1_${Date.now()}`, "GameReconnect1");
+      await setupCharacter(p2, `test_game_reconnect2_${Date.now()}`, "GameReconnect2");
+
+      sendEvent(p1, { type: "createRoom", roomId, playerId: "" });
+      await waitForEvent(p1, "roomSnapshot");
+      sendEvent(p2, { type: "joinRoom", roomId, playerId: "" });
+      await waitForEvent(p2, "roomSnapshot");
+      const start1Promise = waitForEvent(p1, "gameStart");
+      const start2Promise = waitForEvent(p2, "gameStart");
+      sendEvent(p1, { type: "startGame", playerId: "" });
+      const start1 = await start1Promise as any;
+      const start2 = await start2Promise as any;
+      const activeClient = start1.state.currentPlayerId === "GameReconnect1" ? p1 : p2;
+      const activeStart = activeClient === p1 ? start1 : start2;
+      const roomStateBefore = activeStart.state;
+      const oldToken = activeClient === p1 ? (p1 as any).__token : (p2 as any).__token;
+      const playerId = roomStateBefore.currentPlayerId;
+      const replacement = activeClient === p1 ? p1 : p2;
+
+      replacement.close();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const recovered = await createClient();
+      const savedToken = oldToken;
+      const recoveredSnapshotPromise = waitForEvent(recovered, "roomSnapshot");
+      const recoveredStatePromise = waitForEvent(recovered, "statePatch");
+      sendEvent(recovered, { type: "reconnect", roomId, playerId, token: savedToken });
+      const recoveredSnapshot = await recoveredSnapshotPromise;
+      expect(recoveredSnapshot.roomId).toBe(roomId);
+      const recoveredState = await recoveredStatePromise;
+      expect((recoveredState as any).state.turnId).toBe(roomStateBefore.turnId);
+      expect((recoveredState as any).state.currentPlayerId).toBe(roomStateBefore.currentPlayerId);
+      recovered.close();
+      if (activeClient === p1) p2.close(); else p1.close();
+    });
+
+    it("restores an active game after a server restart", async () => {
+      const roomId = `room_restart_${Date.now()}`;
+      const ownerId = `RestartOwner_${Date.now()}`;
+      const guestId = `RestartGuest_${Date.now()}`;
+      const owner = await createClient();
+      const guest = await createClient();
+      await setupCharacter(owner, `restart_owner_${Date.now()}`, ownerId);
+      await setupCharacter(guest, `restart_guest_${Date.now()}`, guestId);
+      sendEvent(owner, { type: "createRoom", roomId, playerId: ownerId });
+      await waitForEvent(owner, "roomSnapshot");
+      sendEvent(guest, { type: "joinRoom", roomId, playerId: guestId });
+      await waitForEvent(guest, "roomSnapshot");
+      const startPromise = waitForEvent(owner, "gameStart");
+      sendEvent(owner, { type: "startGame", playerId: ownerId });
+      const start = await startPromise;
+      if (start.type !== "gameStart") throw new Error("game did not start");
+      const ownerToken = (owner as any).__token as string;
+      const hand = start.hand;
+      const gameId = start.state.gameId;
+      const turnId = start.state.turnId;
+      server.kill();
+      await new Promise<void>(resolve => server.once("exit", () => resolve()));
+      await startServer();
+      const restored = await createClient();
+      const snapshotPromise = waitForEvent(restored, "roomSnapshot");
+      const patchPromise = waitForEvent(restored, "statePatch");
+      sendEvent(restored, { type: "reconnect", roomId, playerId: ownerId, token: ownerToken });
+      const snapshot = await snapshotPromise;
+      const patch = await patchPromise;
+      expect(snapshot.type).toBe("roomSnapshot");
+      if (patch.type !== "statePatch") throw new Error("game state not restored");
+      expect(patch.state.gameId).toBe(gameId);
+      expect(patch.state.turnId).toBe(turnId);
+      expect(patch.hand).toEqual(hand);
+      expect(patch.phase.phase).toBe("turn_main");
+      restored.close();
+    });
+
     it("2-player game: start and receive gameStart", async () => {
       const roomId = `room_game_${Date.now()}`;
       const p1 = await createClient();
@@ -203,13 +343,14 @@ describe.skipIf(!serverAvailable)("Server integration", () => {
       sendEvent(p2, { type: "joinRoom", roomId, playerId: "" });
       await waitForEvent(p2, "roomSnapshot");
 
+      const start1Promise = waitForEvent(p1, "gameStart");
+      const start2Promise = waitForEvent(p2, "gameStart");
       sendEvent(p1, { type: "startGame", playerId: "" });
-      const start1 = await waitForEvent(p1, "gameStart") as any;
-      const start2 = await waitForEvent(p2, "gameStart") as any;
+      const start1 = await start1Promise as any;
+      const start2 = await start2Promise as any;
 
-      // Find whose turn it is
       const currentPlayerId = start1.state.currentPlayerId;
-      const activeClient = start1.hand.length > 0 && currentPlayerId === "Player1" ? p1 : p2;
+      const activeClient = currentPlayerId === "Drawer1" ? p1 : p2;
       const activeStart = activeClient === p1 ? start1 : start2;
 
       // Draw a card
@@ -220,8 +361,8 @@ describe.skipIf(!serverAvailable)("Server integration", () => {
         seq: 1
       } as any);
 
-      const patch = await waitForEvent(activeClient, "statePatch");
-      expect(patch.type).toBe("statePatch");
+      const patch = await waitForEvent(activeClient, "statePatch") as any;
+      expect(patch.phase.phase).toBe("post_draw_window");
 
       closeClient(p1);
       closeClient(p2);
@@ -232,20 +373,24 @@ describe.skipIf(!serverAvailable)("Server integration", () => {
       const p1 = await createClient();
       const p2 = await createClient();
 
-      await setupCharacter(p1, `test_play1_${Date.now()}`, "Player1");
-      await setupCharacter(p2, `test_play2_${Date.now()}`, "Player2");
+      const firstPlayer = `Play1_${Date.now()}`;
+      const secondPlayer = `Play2_${Date.now()}`;
+      await setupCharacter(p1, `test_play1_${Date.now()}`, firstPlayer);
+      await setupCharacter(p2, `test_play2_${Date.now()}`, secondPlayer);
 
       sendEvent(p1, { type: "createRoom", roomId, playerId: "" });
       await waitForEvent(p1, "roomSnapshot");
       sendEvent(p2, { type: "joinRoom", roomId, playerId: "" });
       await waitForEvent(p2, "roomSnapshot");
 
+      const start1Promise = waitForEvent(p1, "gameStart");
+      const start2Promise = waitForEvent(p2, "gameStart");
       sendEvent(p1, { type: "startGame", playerId: "" });
-      const start1 = await waitForEvent(p1, "gameStart") as any;
-
+      const start1 = await start1Promise as any;
+      const start2 = await start2Promise as any;
       const currentPlayerId = start1.state.currentPlayerId;
-      const activeClient = currentPlayerId === "Player1" ? p1 : p2;
-      const activeStart = activeClient === p1 ? start1 : (await waitForEvent(p2, "gameStart") as any);
+      const activeClient = currentPlayerId === firstPlayer ? p1 : p2;
+      const activeStart = activeClient === p1 ? start1 : start2;
 
       // Find a playable card from hand
       const hand = activeStart.hand as any[];
@@ -253,31 +398,33 @@ describe.skipIf(!serverAvailable)("Server integration", () => {
       const drawCardStack = start1.state.drawCardStack;
 
       // Try to find a playable card (simple matching)
-      const playableCard = hand.find((c: any) => {
-        if (c.kind === "wild_draw_four") return true;
-        if (drawCardStack > 0) {
-          return c.kind === "draw_two" || (c.kind === "reverse" && c.color === topCard.color);
-        }
-        if (c.kind === "wild") return false;
-        if (topCard.color !== "wild" && c.color === topCard.color) return true;
-        if (c.kind === "number" && topCard.kind === "number" && c.value === topCard.value) return true;
-        if (c.kind === "number" || topCard.kind === "number") return false;
-        return c.kind === topCard.kind;
-      });
+      const playableCard = hand.find((c: any) => isCardPlayableLite({
+        card: c,
+        topCard,
+        drawCardStack,
+        currentPlayerId,
+        playerId: currentPlayerId
+      }));
 
       if (playableCard) {
+        const result = Promise.race([
+          waitForEvent(activeClient, "statePatch"),
+          waitForEvent(activeClient, "actionRejected")
+        ]);
         sendEvent(activeClient, {
           type: "playCard",
           playerId: currentPlayerId,
           cardId: playableCard.id,
-          declaredColor: playableCard.kind === "wild" || playableCard.kind === "wild_draw_four" ? "red" : undefined,
+          declaredColor: playableCard.kind === "wild_draw_four" ? "red" : undefined,
           turnId: activeStart.state.turnId,
           seq: 1
         } as any);
 
-        // Should get a statePatch with snatch_window phase
-        const patch = await waitForEvent(activeClient, "statePatch") as any;
-        expect(patch.type).toBe("statePatch");
+        const patch = await result as any;
+        expect(patch.type, patch.message).toBe("statePatch");
+        expect(patch.phase.phase).toBe("snatch_window");
+      } else {
+        expect(hand.length).toBeGreaterThan(0);
       }
 
       closeClient(p1);

@@ -1,14 +1,11 @@
-import { randomUUID, randomBytes, scrypt, timingSafeEqual } from "crypto";
+import { randomUUID, randomBytes, scrypt, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
 import { persistence } from "./db.js";
 
 const scryptAsync = promisify(scrypt);
 
-// In-memory token store: token → { accountId, characterId? }
-const tokens = new Map<string, { accountId: string; characterId?: string }>();
-
-const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-const tokenTimestamps = new Map<string, number>();
+const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
+const tokenHash = (token: string): string => createHash("sha256").update(token).digest("hex");
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -32,8 +29,7 @@ export async function register(username: string, password: string): Promise<{ ok
   await persistence.createAccount(accountId, username, passwordHash);
 
   const token = randomUUID();
-  tokens.set(token, { accountId });
-  tokenTimestamps.set(token, Date.now());
+  await persistence.saveAuthToken(tokenHash(token), accountId, Date.now() + TOKEN_EXPIRY_MS);
   return { ok: true, token, accountId };
 }
 
@@ -47,35 +43,21 @@ export async function login(username: string, password: string): Promise<{ ok: b
     return { ok: false, error: "密码错误" };
   }
   const token = randomUUID();
-  tokens.set(token, { accountId: account.accountId });
-  tokenTimestamps.set(token, Date.now());
+  await persistence.saveAuthToken(tokenHash(token), account.accountId, Date.now() + TOKEN_EXPIRY_MS);
   return { ok: true, token, accountId: account.accountId };
 }
 
-export function verifyToken(token: string): { accountId: string; characterId?: string } | null {
-  const entry = tokens.get(token);
+export async function verifyToken(token: string): Promise<{ accountId: string; characterId?: string } | null> {
+  if (!token) return null;
+  const entry = await persistence.getAuthToken(tokenHash(token));
   if (!entry) return null;
-  const ts = tokenTimestamps.get(token);
-  if (ts && Date.now() - ts > TOKEN_EXPIRY_MS) {
-    tokens.delete(token);
-    tokenTimestamps.delete(token);
+  if (entry.expiresAt <= Date.now()) {
+    await persistence.deleteAuthToken(tokenHash(token));
     return null;
   }
-  return entry;
+  return { accountId: entry.accountId, characterId: entry.characterId ?? undefined };
 }
 
-export function setTokenCharacter(token: string, characterId: string): void {
-  const entry = tokens.get(token);
-  if (entry) {
-    entry.characterId = characterId;
-  }
-}
-
-export function getTokenCharacter(token: string): string | undefined {
-  return tokens.get(token)?.characterId;
-}
-
-export function deleteToken(token: string): void {
-  tokens.delete(token);
-  tokenTimestamps.delete(token);
+export async function setTokenCharacter(token: string, characterId: string): Promise<void> {
+  await persistence.setAuthTokenCharacter(tokenHash(token), characterId);
 }

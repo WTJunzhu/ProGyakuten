@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS room_players (
   FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS room_seat_owners (
+  room_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  PRIMARY KEY (room_id, player_id)
+);
+
 CREATE TABLE IF NOT EXISTS game_snapshots (
   room_id TEXT PRIMARY KEY,
   state_json TEXT NOT NULL,
@@ -45,6 +52,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  token_hash TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  character_id TEXT,
+  expires_at INTEGER NOT NULL,
+  FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS characters (
   character_id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
@@ -65,6 +80,9 @@ export interface PersistenceLayer {
   loadRoom(roomId: string): Promise<RoomState | null>;
   deleteRoom(roomId: string): Promise<void>;
   loadAllRooms(): Promise<RoomState[]>;
+  saveSeatOwner(roomId: string, playerId: string, characterId: string): Promise<void>;
+  getSeatOwner(roomId: string, playerId: string): Promise<string | null>;
+  deleteSeatOwner(roomId: string, playerId: string): Promise<void>;
 
   saveGameSnapshot(roomId: string, game: GameStateInternal, phase?: TurnPhaseInfo): Promise<void>;
   loadGameSnapshot(roomId: string): Promise<{ game: GameStateInternal; phase?: TurnPhaseInfo } | null>;
@@ -76,6 +94,11 @@ export interface PersistenceLayer {
 
   createAccount(accountId: string, username: string, passwordHash: string): Promise<void>;
   getAccountByUsername(username: string): Promise<{ accountId: string; username: string; passwordHash: string } | null>;
+  saveAuthToken(tokenHash: string, accountId: string, expiresAt: number): Promise<void>;
+  getAuthToken(tokenHash: string): Promise<{ accountId: string; characterId: string | null; expiresAt: number } | null>;
+  setAuthTokenCharacter(tokenHash: string, characterId: string): Promise<void>;
+  deleteAuthToken(tokenHash: string): Promise<void>;
+  deleteExpiredAuthTokens(now: number): Promise<void>;
 
   getCharactersByAccount(accountId: string): Promise<{ characterId: string; accountId: string; slotIndex: number; displayName: string; level: number; wins: number; losses: number }[]>;
   createCharacter(characterId: string, accountId: string, slotIndex: number, displayName: string): Promise<void>;
@@ -177,7 +200,10 @@ export class SqlitePersistence implements PersistenceLayer {
   }
 
   async deleteRoom(roomId: string): Promise<void> {
-    await this.db.execute({ sql: `DELETE FROM rooms WHERE room_id = ?`, args: [roomId] });
+    await this.db.batch([
+      { sql: `DELETE FROM room_seat_owners WHERE room_id = ?`, args: [roomId] },
+      { sql: `DELETE FROM rooms WHERE room_id = ?`, args: [roomId] }
+    ]);
   }
 
   async loadAllRooms(): Promise<RoomState[]> {
@@ -188,6 +214,26 @@ export class SqlitePersistence implements PersistenceLayer {
       if (room) results.push(room);
     }
     return results;
+  }
+
+  async saveSeatOwner(roomId: string, playerId: string, characterId: string): Promise<void> {
+    await this.db.execute({
+      sql: `INSERT INTO room_seat_owners (room_id, player_id, character_id) VALUES (?, ?, ?)
+        ON CONFLICT(room_id, player_id) DO UPDATE SET character_id = excluded.character_id`,
+      args: [roomId, playerId, characterId]
+    });
+  }
+
+  async getSeatOwner(roomId: string, playerId: string): Promise<string | null> {
+    const result = await this.db.execute({
+      sql: `SELECT character_id FROM room_seat_owners WHERE room_id = ? AND player_id = ?`,
+      args: [roomId, playerId]
+    });
+    return result.rows.length ? String(result.rows[0].character_id) : null;
+  }
+
+  async deleteSeatOwner(roomId: string, playerId: string): Promise<void> {
+    await this.db.execute({ sql: `DELETE FROM room_seat_owners WHERE room_id = ? AND player_id = ?`, args: [roomId, playerId] });
   }
 
   // --- Game snapshot ---
@@ -306,6 +352,29 @@ export class SqlitePersistence implements PersistenceLayer {
     if (row.rows.length === 0) return null;
     const r = row.rows[0] as unknown as { account_id: string; username: string; password_hash: string };
     return { accountId: r.account_id, username: r.username, passwordHash: r.password_hash };
+  }
+
+  async saveAuthToken(tokenHash: string, accountId: string, expiresAt: number): Promise<void> {
+    await this.db.execute({ sql: `INSERT INTO auth_tokens (token_hash, account_id, expires_at) VALUES (?, ?, ?)`, args: [tokenHash, accountId, expiresAt] });
+  }
+
+  async getAuthToken(tokenHash: string): Promise<{ accountId: string; characterId: string | null; expiresAt: number } | null> {
+    const result = await this.db.execute({ sql: `SELECT account_id, character_id, expires_at FROM auth_tokens WHERE token_hash = ?`, args: [tokenHash] });
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return { accountId: String(row.account_id), characterId: row.character_id === null ? null : String(row.character_id), expiresAt: Number(row.expires_at) };
+  }
+
+  async setAuthTokenCharacter(tokenHash: string, characterId: string): Promise<void> {
+    await this.db.execute({ sql: `UPDATE auth_tokens SET character_id = ? WHERE token_hash = ?`, args: [characterId, tokenHash] });
+  }
+
+  async deleteAuthToken(tokenHash: string): Promise<void> {
+    await this.db.execute({ sql: `DELETE FROM auth_tokens WHERE token_hash = ?`, args: [tokenHash] });
+  }
+
+  async deleteExpiredAuthTokens(now: number): Promise<void> {
+    await this.db.execute({ sql: `DELETE FROM auth_tokens WHERE expires_at <= ?`, args: [now] });
   }
 
   // --- Character ---

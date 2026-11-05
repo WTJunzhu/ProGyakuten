@@ -229,6 +229,9 @@ export async function launchGame(room: RoomState): Promise<void> {
     TURN_TIMEOUT_MS
   );
 
+  await persistence.saveRoom(room);
+  await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
+
   for (const playerId of room.players) {
     const conn = playersById.get(playerId);
     if (!conn) continue;
@@ -244,8 +247,6 @@ export async function launchGame(room: RoomState): Promise<void> {
     });
   }
 
-  await persistence.saveRoom(room);
-  await persistence.saveGameSnapshot(room.roomId, room.game, room.phase);
   broadcastToLobby(getLobbyStateEvent());
 
   // 如果首个出牌者是 AI，立即触发

@@ -50,6 +50,6 @@ export const TURN_TIMEOUT_MS = Number(process.env.TURN_TIMEOUT_MS ?? "30000");
 export const SNATCH_WINDOW_TIMEOUT_MS = Number(process.env.SNATCH_WINDOW_TIMEOUT_MS ?? "30000");
 export const POST_DRAW_WINDOW_TIMEOUT_MS = Number(process.env.POST_DRAW_WINDOW_TIMEOUT_MS ?? "5000");
 export const SNATCH_AUTO_SKIP_MS = Number(process.env.SNATCH_AUTO_SKIP_MS ?? "5000");
-export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS ?? "20000");
+export const RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS ?? "90000");
 export const CHARACTER_DRAFT_TIMEOUT_MS = Number(process.env.CHARACTER_DRAFT_TIMEOUT_MS ?? "30000");
 export const GAME_INTRO_MS = Number(process.env.GAME_INTRO_MS ?? "5000");

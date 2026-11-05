@@ -127,6 +127,7 @@ export interface ReconnectEvent {
   type: "reconnect";
   roomId: string;
   playerId: string;
+  token: string;
 }
 
 export interface RegisterEvent {

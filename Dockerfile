@@ -45,4 +45,4 @@ ENV TURSO_URL=file:/data/gyakuten.db
 EXPOSE 3001
 
 # Start server
-CMD ["npx", "tsx", "apps/server/src/index.ts"]
+CMD ["node", "apps/server/dist/index.js"]

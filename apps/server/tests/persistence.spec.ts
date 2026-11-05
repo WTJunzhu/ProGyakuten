@@ -48,7 +48,10 @@ describe("SqlitePersistence", () => {
 
     it("deletes a room", async () => {
       await db.saveRoom(makeRoom());
+      await db.saveSeatOwner("test-room", "alice", "char-alice");
+      expect(await db.getSeatOwner("test-room", "alice")).toBe("char-alice");
       await db.deleteRoom("test-room");
+      expect(await db.getSeatOwner("test-room", "alice")).toBeNull();
       expect(await db.loadRoom("test-room")).toBeNull();
     });
 
@@ -73,6 +76,20 @@ describe("SqlitePersistence", () => {
     it("returns null for non-existent username", async () => {
       const account = await db.getAccountByUsername("nobody");
       expect(account).toBeNull();
+    });
+  });
+
+  describe("Auth token persistence", () => {
+    it("stores token ownership and character binding", async () => {
+      await db.createAccount("acc-1", "user", "hash");
+      await db.saveAuthToken("hashed-token", "acc-1", 123456);
+      expect(await db.getAuthToken("hashed-token")).toEqual({ accountId: "acc-1", characterId: null, expiresAt: 123456 });
+      await db.setAuthTokenCharacter("hashed-token", "char-1");
+      expect((await db.getAuthToken("hashed-token"))?.characterId).toBe("char-1");
+      await db.deleteExpiredAuthTokens(123455);
+      expect(await db.getAuthToken("hashed-token")).not.toBeNull();
+      await db.deleteExpiredAuthTokens(123456);
+      expect(await db.getAuthToken("hashed-token")).toBeNull();
     });
   });
 

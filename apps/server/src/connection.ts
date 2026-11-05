@@ -13,7 +13,7 @@ import { handleLeaveSpectator } from "./spectator.js";
 
 export function markDisconnected(playerId: string): void {
   const conn = playersById.get(playerId);
-  if (!conn) return;
+  if (!conn || conn.disconnectedAt) return;
   conn.disconnectedAt = Date.now();
   if (conn.roomId) {
     const room = roomManager.get(conn.roomId);
@@ -44,6 +44,7 @@ export function markDisconnected(playerId: string): void {
     if (room.status === "lobby" || room.status === "game_over" ||
         room.status === "character_selection" || room.status === "game_intro") {
       removePlayerFromLobbyRoom(room, playerId);
+      await persistence.deleteSeatOwner(room.roomId, playerId);
       if (room.players.length === 0) {
         roomManager.delete(room.roomId);
         await persistence.deleteRoom(room.roomId);
@@ -94,7 +95,10 @@ export function markDisconnected(playerId: string): void {
 
 export function handleReconnect(conn: PlayerConn, ws: import("ws").WebSocket, roomId: string, playerId: string): void {
   const existing = playersById.get(playerId);
-  if (existing) connections.delete(existing.ws);
+  if (existing && existing !== conn) {
+    connections.delete(existing.ws);
+    existing.ws.close();
+  }
 
   conn.playerId = playerId;
   conn.characterName = playerId;
@@ -122,7 +126,7 @@ export function handleReconnect(conn: PlayerConn, ws: import("ws").WebSocket, ro
 
 export function handleDisconnect(conn: PlayerConn): void {
   connections.delete(conn.ws);
-  if (conn.playerId) markDisconnected(conn.playerId);
+  if (conn.playerId && playersById.get(conn.playerId) === conn) markDisconnected(conn.playerId);
 }
 
 // Re-use broadcast.ts buildStateEvent for inline broadcast (avoids circular import)
